@@ -44,6 +44,15 @@ class ProjectViewTests(unittest.TestCase):
         self.assertIn("india nosebleed", queries)
         self.assertIn("india epistaxis", queries)
 
+    def test_build_focus_queries_expand_chest_pain_aliases(self) -> None:
+        """Relatable symptom briefs should also probe common clinical variants."""
+
+        queries = _build_focus_queries(["chest pain"])
+
+        self.assertIn("india chest pain", queries)
+        self.assertIn("india chest tightness", queries)
+        self.assertIn("india angina", queries)
+
     def test_expand_project_keywords_adds_brand_aliases(self) -> None:
         """Canonical terms should expand to the same family as common brand-name aliases."""
 

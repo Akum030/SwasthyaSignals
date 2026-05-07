@@ -53,6 +53,22 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual(enriched.entities["symptoms"], ["nose bleeding"])
 
+    def test_enrich_item_canonicalizes_chest_pain_aliases(self) -> None:
+        """Chest-pain variants should collapse into one canonical symptom for scoring."""
+
+        item = ContentItem(
+            source="google_news",
+            source_label="Google News RSS: india angina",
+            title="Doctors explain when chest tightness needs urgent evaluation",
+            body="Common angina symptoms can look different across patients.",
+            url="https://example.com/chest-pain",
+            published_at=None,
+        )
+
+        enriched = enrich_item(item)
+
+        self.assertEqual(enriched.entities["symptoms"], ["chest pain"])
+
     def test_build_signals_scores_cross_source_evidence(self) -> None:
         """Signals should be emitted when two sources corroborate the same pair."""
 
