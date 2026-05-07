@@ -20,6 +20,7 @@ class AppConfig:
         ),
     )
     server_host: str = getenv("SERVER_HOST", "local-swasthya-signals")
+    demo_url: str = getenv("SWASTHYA_DEMO_URL", "/app/")
     version: str = "0.3.0"
     reddit_subreddits: tuple[str, ...] = (
         "diabetes",
@@ -85,6 +86,10 @@ ENTITY_LEXICONS: dict[str, tuple[str, ...]] = {
         "anxiety",
         "brain fog",
         "chest pain",
+        "nose bleeding",
+        "nosebleed",
+        "epistaxis",
+        "bloody nose",
     ),
     "conditions": (
         "diabetes",
@@ -133,6 +138,7 @@ PROJECT_SYNONYMS: dict[str, tuple[str, ...]] = {
     "pollution": ("pm2.5", "aqi", "smog", "air quality"),
     "child": ("children", "pediatric", "paediatric", "adolescent", "school"),
     "diabetes": ("t1d", "t2d", "type 1 diabetes", "type 2 diabetes"),
+    "nose bleeding": ("nosebleed", "epistaxis", "bloody nose", "nasal bleeding"),
 }
 
 

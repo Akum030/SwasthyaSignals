@@ -205,7 +205,7 @@ def build_project_view(
 
     filtered_items: list[dict[str, object]] = []
     official_context: list[dict[str, object]] = []
-    focus_queries = _build_focus_queries(expanded_keywords)
+    focus_queries = _build_focus_queries(keywords)
     seen_urls: set[str] = set()
     for item in snapshot.get("items", []):
         merged = f"{item['title']} {item['body']}".lower()
@@ -303,7 +303,7 @@ def _collect_project_focus_items(
     if not keywords:
         return []
 
-    queries = _build_focus_queries(_expand_project_keywords(keywords))
+    queries = _build_focus_queries(keywords)
     if not queries:
         return []
 
@@ -340,16 +340,29 @@ def _build_focus_queries(keywords: list[str]) -> list[str]:
         if cleaned and cleaned not in cleaned_keywords:
             cleaned_keywords.append(cleaned)
 
+    cleaned_keywords = _collapse_overlapping_keywords(cleaned_keywords)
+
     if not cleaned_keywords:
         return []
 
     drug_terms = set(ENTITY_LEXICONS.get("drugs", ()))
+    symptom_terms = set(ENTITY_LEXICONS.get("symptoms", ()))
+    family_map = _project_keyword_family_map()
     queries: list[str] = []
     is_narrow_brief = 1 < len(cleaned_keywords) <= 3
     if len(cleaned_keywords) >= 2:
         queries.append(f"india {cleaned_keywords[0]} {cleaned_keywords[1]}")
+
+    if len(cleaned_keywords) == 1:
+        keyword = cleaned_keywords[0]
+        family = family_map.get(keyword, (keyword,))
+        is_symptom_family = any(term in symptom_terms for term in family)
+        if is_symptom_family:
+            for term in family[:3]:
+                queries.append(f"india {term}")
+
     for keyword in cleaned_keywords[:4]:
-        if not is_narrow_brief:
+        if not is_narrow_brief or len(cleaned_keywords) == 1:
             queries.append(f"india {keyword}")
         if keyword in drug_terms:
             queries.append(f"{keyword} side effect")
@@ -359,6 +372,24 @@ def _build_focus_queries(keywords: list[str]) -> list[str]:
         if query not in deduped:
             deduped.append(query)
     return deduped[:6]
+
+
+def _collapse_overlapping_keywords(keywords: list[str]) -> list[str]:
+    """Drop single-word fragments already covered by a longer project phrase."""
+
+    collapsed: list[str] = []
+    token_sets = {keyword: set(keyword.split()) for keyword in keywords}
+    for keyword in keywords:
+        keyword_tokens = token_sets[keyword]
+        if any(
+            keyword != other
+            and len(keyword_tokens) < len(token_sets[other])
+            and keyword_tokens.issubset(token_sets[other])
+            for other in keywords
+        ):
+            continue
+        collapsed.append(keyword)
+    return collapsed
 
 
 def _item_relevance_score(item: dict[str, object], keywords: list[str]) -> int:

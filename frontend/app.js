@@ -141,7 +141,7 @@ function attachMotionCards(root = document) {
 }
 async function fetchJson(path, opts={}) {
   const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 90000);
+  const tid = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 150000);
   try {
     const r = await fetch(path, { ...opts, signal: ctrl.signal });
     if (!r.ok) throw new Error("HTTP "+r.status);
@@ -179,6 +179,9 @@ function showLoading(title, sub) {
 function showError(msg) {
   el.loading.classList.remove("visible");
   el.errorState.classList.add("visible");
+  el.results.classList.remove("visible");
+  el.topbar.classList.add("visible");
+  el.resultsTelemetry.innerHTML = "";
   el.errorMsg.textContent = msg || "Something went wrong.";
 }
 
@@ -415,7 +418,7 @@ async function doSearch(rawQuery) {
     showSkeletons();
     el.loading.classList.remove("visible");
     el.results.classList.add("visible");
-    const analysis = await fetchJson("/api/v1/projects/analyze", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(project), timeoutMs:90000 });
+    const analysis = await fetchJson("/api/v1/projects/analyze", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(project), timeoutMs:150000 });
     state.analysis = analysis;
     renderMetaPills(analysis.metrics ?? null);
     renderTelemetry(analysis);

@@ -26,6 +26,24 @@ class ProjectViewTests(unittest.TestCase):
         self.assertNotIn("india metformin", queries)
         self.assertNotIn("india palpitations", queries)
 
+    def test_build_focus_queries_drop_redundant_single_word_fragments(self) -> None:
+        """Split words from the same phrase should not produce awkward duplicate live probes."""
+
+        queries = _build_focus_queries(["hair loss", "hair", "loss"])
+
+        self.assertIn("india hair loss", queries)
+        self.assertNotIn("india hair loss hair", queries)
+        self.assertNotIn("india hair loss loss", queries)
+
+    def test_build_focus_queries_expand_symptom_aliases_for_narrow_phrase(self) -> None:
+        """Symptom-only briefs should probe common clinical aliases, not just one literal phrase."""
+
+        queries = _build_focus_queries(["nose bleeding", "nose", "bleeding"])
+
+        self.assertIn("india nose bleeding", queries)
+        self.assertIn("india nosebleed", queries)
+        self.assertIn("india epistaxis", queries)
+
     def test_expand_project_keywords_adds_brand_aliases(self) -> None:
         """Canonical terms should expand to the same family as common brand-name aliases."""
 
@@ -305,6 +323,49 @@ class ProjectViewTests(unittest.TestCase):
 
         self.assertEqual(analysis["metrics"]["item_count"], 1)
         self.assertEqual(analysis["items"][0]["title"], "Glycomet is giving me nausea after meals")
+
+    def test_build_project_view_keeps_symptom_synonym_focus_result(self) -> None:
+        """Symptom aliases should survive focused search filtering for plain-language briefs."""
+
+        snapshot = {
+            "generated_at": "2026-05-07T00:00:00+00:00",
+            "items": [],
+        }
+        project = {
+            "name": "Nose bleeding watch",
+            "description": "Focus on nose-bleeding chatter and public-health references.",
+            "keywords": ["nose bleeding"],
+            "sources": ["google_news"],
+            "latency_profile": "Realtime",
+        }
+        focus_items = [
+            {
+                "source": "google_news",
+                "source_label": "Google News RSS:india nosebleed",
+                "title": "Doctors report more nosebleed complaints during the heatwave",
+                "body": "Delhi clinics are seeing more nosebleed complaints and advising hydration during summer heat.",
+                "url": "https://news.google.com/example/nosebleed-story",
+                "published_at": "2026-05-07T00:00:00+00:00",
+                "region": "India",
+                "official": False,
+                "language": "en",
+                "sentiment": "neutral",
+                "adr_like": False,
+                "entities": {
+                    "symptoms": ["nosebleed"],
+                },
+                "tags": [],
+            }
+        ]
+
+        analysis = build_project_view(snapshot, project, focus_items=focus_items)
+
+        self.assertIn("india nosebleed", analysis["focus_queries"])
+        self.assertEqual(analysis["metrics"]["item_count"], 1)
+        self.assertEqual(
+            analysis["items"][0]["title"],
+            "Doctors report more nosebleed complaints during the heatwave",
+        )
 
     def test_build_project_view_rejects_scattered_focus_query_mentions(self) -> None:
         """Focused search items should not pass when query terms only appear in unrelated sentences."""
