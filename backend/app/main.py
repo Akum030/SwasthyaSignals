@@ -40,13 +40,13 @@ def create_app() -> FastAPI:
     if frontend_dir.exists():
         app.mount("/app", StaticFiles(directory=frontend_dir, html=True), name="app")
 
-    @app.get("/", include_in_schema=False)
+    @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     def portal_root() -> RedirectResponse:
         """Make the domain root open the command-center UI directly."""
 
         return RedirectResponse(url="/app/", status_code=307)
 
-    @app.get("/health")
+    @app.api_route("/health", methods=["GET", "HEAD"])
     def health() -> dict[str, str]:
         """Return the standardized health payload."""
 
