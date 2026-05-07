@@ -20,6 +20,7 @@ const el = {
   results: document.getElementById("resultsSection"),
   queryDisplay: document.getElementById("queryDisplay"),
   metaPills: document.getElementById("metaPills"),
+  resultsTelemetry: document.getElementById("resultsTelemetry"),
   signalList: document.getElementById("signalList"),
   signalCount: document.getElementById("signalCount"),
   signalDetail: document.getElementById("signalDetail"),
@@ -73,7 +74,23 @@ function formatTime(value) {
   if (!value) return "";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return parsed.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function flattenEntities(entities) {
+  if (!entities || typeof entities !== "object") return [];
+  const values = [];
+  Object.values(entities).forEach(group => {
+    if (Array.isArray(group)) {
+      group.forEach(item => {
+        if (item && !values.includes(item)) values.push(item);
+      });
+    }
+  });
+  return values.slice(0, 4);
+}
+function formatStatusTime(value) {
+  const formatted = formatTime(value);
+  return formatted || "Unavailable";
 }
 function evidenceKind(item) {
   if (item?.official) return "Official reference";
@@ -148,6 +165,7 @@ function showHero() {
   el.errorState.classList.remove("visible");
   el.results.classList.remove("visible");
   el.topbar.classList.remove("visible");
+  el.resultsTelemetry.innerHTML = "";
 }
 function showLoading(title, sub) {
   el.heroSection.style.display = "none";
@@ -164,6 +182,40 @@ function showError(msg) {
   el.errorMsg.textContent = msg || "Something went wrong.";
 }
 
+function renderTelemetry(analysis) {
+  const statuses = Array.isArray(analysis?.source_status) ? analysis.source_status : [];
+  const okStatuses = statuses.filter(status => status.ok);
+  const focusQueries = Array.isArray(analysis?.focus_queries) ? analysis.focus_queries.slice(0, 6) : [];
+  const generatedAt = formatStatusTime(analysis?.generated_at);
+  const sourceBreakdown = Array.isArray(analysis?.source_breakdown) ? analysis.source_breakdown.slice(0, 4) : [];
+
+  const statusMarkup = statuses.length
+    ? statuses.map(status => `<span class="telemetry-chip ${status.ok ? "ok" : "warn"}">${esc(status.label)} ${status.item_count ? `· ${status.item_count}` : ""}</span>`).join("")
+    : `<span class="telemetry-chip">Source checks unavailable</span>`;
+  const queryMarkup = focusQueries.length
+    ? focusQueries.map(query => `<span class="telemetry-query">${esc(query)}</span>`).join("")
+    : `<span class="telemetry-chip">No targeted live query probes were generated</span>`;
+  const sourceMarkup = sourceBreakdown.length
+    ? sourceBreakdown.map(entry => `<span class="telemetry-chip">${esc(formatSourceLabel(entry.source))} · ${entry.count}</span>`).join("")
+    : `<span class="telemetry-chip">No source distribution available</span>`;
+
+  el.resultsTelemetry.innerHTML = `<article class="telemetry-card telemetry-card-strong">
+      <p class="telemetry-label">Snapshot</p>
+      <strong class="telemetry-value">${esc(generatedAt)}</strong>
+      <p class="telemetry-note">Realtime briefs auto-refresh stale snapshots and then merge live query-specific evidence.</p>
+    </article>
+    <article class="telemetry-card">
+      <p class="telemetry-label">Source health</p>
+      <strong class="telemetry-value">${okStatuses.length}/${statuses.length || 0} connectors live</strong>
+      <div class="telemetry-chip-row">${statusMarkup}</div>
+    </article>
+    <article class="telemetry-card telemetry-card-wide">
+      <p class="telemetry-label">Live query probes executed</p>
+      <div class="telemetry-query-row">${queryMarkup}</div>
+      <div class="telemetry-chip-row">${sourceMarkup}</div>
+    </article>`;
+}
+
 /* ---- Skeletons ---- */
 function showSkeletons() {
   const sk = (w="w100") => `<div class="sk h12 ${w}"></div>`;
@@ -175,7 +227,10 @@ function showSkeletons() {
 function renderSignals(signals) {
   el.signalCount.textContent = signals.length + (signals.length===1?" signal":" signals");
   if (!signals.length) {
-    el.signalList.innerHTML = `<div class="empty-state">No health signals detected for this keyword.<br>Try a more specific term like a drug name or disease.</div>`;
+    const queryProbeCopy = Array.isArray(state.analysis?.focus_queries) && state.analysis.focus_queries.length
+      ? `<br>Live probes run: ${esc(state.analysis.focus_queries.slice(0, 3).join(" · "))}`
+      : "";
+    el.signalList.innerHTML = `<div class="empty-state"><strong>No health signals detected for this keyword.</strong><br>That usually means the latest scan did not find enough aligned evidence.${queryProbeCopy}</div>`;
     el.signalDetail.classList.remove("visible"); return;
   }
   el.signalList.innerHTML = signals.map((sig, idx) => {
@@ -302,7 +357,13 @@ function renderEvidence(items) {
   });
   el.evidenceCount.textContent = filtered.length+" items";
   el.evidenceStatus.textContent = filtered.length < items.length ? `Showing ${filtered.length} of ${items.length} — filter active` : `${items.length} verified evidence items`;
-  if (!filtered.length) { el.evidenceList.innerHTML=`<div class="empty-state">No evidence matches this filter.<br>Try clearing the filter above.</div>`; return; }
+  if (!filtered.length) {
+    const probeCopy = Array.isArray(state.analysis?.focus_queries) && state.analysis.focus_queries.length
+      ? `<br>Latest live probes: ${esc(state.analysis.focus_queries.slice(0, 3).join(" · "))}`
+      : "";
+    el.evidenceList.innerHTML=`<div class="empty-state"><strong>No evidence matches this filter.</strong><br>Try clearing the filter or searching a more specific public-health term.${probeCopy}</div>`;
+    return;
+  }
   el.evidenceList.innerHTML = filtered.map((item,idx) => {
     const srcCls = sourceBadgeClass(item.source);
     const srcLbl = formatSourceLabel(item.source) + (item.source_label?(" · "+item.source_label.split(":").pop().trim()):"");
@@ -310,8 +371,8 @@ function renderEvidence(items) {
     const body = cleanText(item.body||""); const snippet = body.length>320?body.slice(0,320)+"…":body;
     const url = safeUrl(item.url); const rootUrl = buildSourceUrl(item);
     const tags = [item.region,item.sentiment].filter(Boolean);
-    const entities = Array.isArray(item.entities) ? item.entities.slice(0,4) : [];
-    const timeLabel = formatTime(item.timestamp);
+    const entities = flattenEntities(item.entities);
+    const timeLabel = formatTime(item.published_at);
     const kind = evidenceKind(item);
     const host = hostLabel(url !== "#" ? url : rootUrl);
     const primaryLabel = primaryActionLabel(item);
@@ -357,6 +418,7 @@ async function doSearch(rawQuery) {
     const analysis = await fetchJson("/api/v1/projects/analyze", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(project), timeoutMs:90000 });
     state.analysis = analysis;
     renderMetaPills(analysis.metrics ?? null);
+    renderTelemetry(analysis);
     renderSignals(analysis.signals ?? []);
     populateSourceFilter(analysis.items ?? []);
     renderEvidence(analysis.items ?? []);

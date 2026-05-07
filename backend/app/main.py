@@ -46,6 +46,12 @@ def create_app() -> FastAPI:
 
         return RedirectResponse(url="/app/", status_code=307)
 
+    @app.api_route("/demo", methods=["GET", "HEAD"], include_in_schema=False)
+    def demo_redirect() -> RedirectResponse:
+        """Expose a stable demo URL that can later be repointed to a hosted video."""
+
+        return RedirectResponse(url=CONFIG.demo_url, status_code=307)
+
     @app.api_route("/health", methods=["GET", "HEAD"])
     def health() -> dict[str, str]:
         """Return the standardized health payload."""
@@ -73,7 +79,9 @@ def create_app() -> FastAPI:
     def analyze_project(project: ProjectRequest, refresh: bool = False) -> dict[str, object]:
         """Build a project-scoped dashboard from the latest live snapshot."""
 
-        snapshot = _refresh_snapshot() if refresh or SNAPSHOT_CACHE is None else SNAPSHOT_CACHE
+        snapshot = SNAPSHOT_CACHE
+        if refresh or snapshot is None or _should_refresh_snapshot(snapshot, project.latency_profile):
+            snapshot = _refresh_snapshot()
         return build_project_view(snapshot, project.model_dump())
 
     @app.get("/api/v1/research")
@@ -97,6 +105,28 @@ def _refresh_snapshot() -> dict[str, object]:
         SNAPSHOT_CACHE = collect_snapshot(CONFIG)
         save_snapshot(SNAPSHOT_CACHE)
         return SNAPSHOT_CACHE
+
+
+def _should_refresh_snapshot(snapshot: dict[str, object], latency_profile: str) -> bool:
+    """Refresh stale snapshots based on the latency contract promised to the user."""
+
+    generated_at = snapshot.get("generated_at")
+    if not isinstance(generated_at, str) or not generated_at:
+        return True
+
+    try:
+        generated = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+
+    ttl_seconds = {
+        "Realtime": 300,
+        "Daily": 6 * 60 * 60,
+        "Weekly": 24 * 60 * 60,
+    }.get(latency_profile, 300)
+
+    age_seconds = (datetime.now(tz=timezone.utc) - generated).total_seconds()
+    return age_seconds >= ttl_seconds
 
 
 app = create_app()

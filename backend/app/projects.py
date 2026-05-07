@@ -31,6 +31,21 @@ OFFICIAL_CONTEXT_KEYWORDS = (
     "pollution",
 )
 
+OFFICIAL_CONTEXT_BRIDGE_MAP: dict[str, tuple[str, ...]] = {
+    "diabetes": ("diabetes", "blood sugar", "ncd", "non-communicable"),
+    "metformin": ("diabetes", "blood sugar", "ncd", "non-communicable"),
+    "insulin": ("diabetes", "blood sugar", "ncd", "non-communicable"),
+    "semaglutide": ("diabetes", "obesity", "ncd", "non-communicable"),
+    "tirzepatide": ("diabetes", "obesity", "ncd", "non-communicable"),
+    "blood sugar": ("diabetes", "blood sugar", "ncd", "non-communicable"),
+    "hypertension": ("hypertension", "blood pressure", "ncd", "non-communicable"),
+    "blood pressure": ("hypertension", "blood pressure", "ncd", "non-communicable"),
+    "obesity": ("obesity", "ncd", "non-communicable"),
+    "asthma": ("asthma", "respiratory", "ncd", "non-communicable"),
+    "tuberculosis": ("tuberculosis", "tb", "programme"),
+    "tb": ("tuberculosis", "tb", "programme"),
+}
+
 HEALTH_SUBREDDIT_TOKENS = (
     "askdocs",
     "asthma",
@@ -190,12 +205,14 @@ def build_project_view(
 
     filtered_items: list[dict[str, object]] = []
     official_context: list[dict[str, object]] = []
+    focus_queries = _build_focus_queries(expanded_keywords)
     seen_urls: set[str] = set()
     for item in snapshot.get("items", []):
         merged = f"{item['title']} {item['body']}".lower()
         if allowed_sources and item["source"] not in allowed_sources:
             continue
-        if item["official"] and any(keyword in merged for keyword in OFFICIAL_CONTEXT_KEYWORDS):
+        official_matches_brief = _official_context_matches_brief(merged, expanded_keywords)
+        if item["official"] and official_matches_brief and any(keyword in merged for keyword in OFFICIAL_CONTEXT_KEYWORDS):
             official_context.append(item)
         if include_official_only and not item["official"]:
             continue
@@ -208,9 +225,7 @@ def build_project_view(
         seen_urls.add(item["url"])
         filtered_items.append(item)
 
-    live_focus_items = (
-        focus_items if focus_items is not None else _collect_project_focus_items(project, allowed_sources)
-    )
+    live_focus_items = focus_items if focus_items is not None else _collect_project_focus_items(project, allowed_sources)
     for item in live_focus_items:
         merged = f"{item['title']} {item['body']}".lower()
         if allowed_sources and item["source"] not in allowed_sources:
@@ -251,6 +266,8 @@ def build_project_view(
     return {
         "project": project,
         "generated_at": snapshot.get("generated_at"),
+        "source_status": snapshot.get("source_status", []),
+        "focus_queries": focus_queries,
         "metrics": {
             "item_count": len(filtered_items),
             "signal_count": len(signals),
@@ -422,6 +439,22 @@ def _count_keyword_hits(text: str, keywords: list[str]) -> int:
         if pattern.search(text):
             hits += 1
     return hits
+
+
+def _official_context_matches_brief(text: str, keywords: list[str]) -> bool:
+    """Allow direct keyword matches plus a narrow family of official health-programme bridge terms."""
+
+    if not keywords:
+        return True
+    if _count_keyword_hits(text, keywords) > 0:
+        return True
+
+    bridge_terms: list[str] = []
+    for keyword in keywords:
+      for term in OFFICIAL_CONTEXT_BRIDGE_MAP.get(keyword, ()):  # noqa: PLW2901
+          if term not in bridge_terms:
+              bridge_terms.append(term)
+    return bool(bridge_terms) and _count_keyword_hits(text, bridge_terms) > 0
 
 
 def _extract_focus_query_terms(source_label: str) -> list[str]:

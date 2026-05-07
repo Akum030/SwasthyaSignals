@@ -723,11 +723,33 @@ a {
 .results-shell {
   display: none;
   margin-top: 26px;
+  position: relative;
+  padding: 22px;
+  border-radius: 32px;
+  border: 1px solid rgba(68, 134, 152, 0.18);
+  background:
+    radial-gradient(circle at top left, rgba(34, 124, 141, 0.18), transparent 26%),
+    radial-gradient(circle at top right, rgba(223, 129, 49, 0.14), transparent 24%),
+    linear-gradient(180deg, rgba(8, 24, 35, 0.96), rgba(9, 18, 28, 0.98));
+  box-shadow: 0 32px 90px rgba(6, 16, 27, 0.35);
+  overflow: hidden;
 }
 
 .results-shell.visible {
   display: block;
   animation: fadeUp 0.45s ease;
+}
+
+.results-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(160, 220, 240, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(160, 220, 240, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent 88%);
 }
 
 .results-header {
@@ -737,6 +759,8 @@ a {
   align-items: end;
   gap: 18px;
   margin-bottom: 18px;
+  position: relative;
+  z-index: 1;
 }
 
 .results-guide {
@@ -744,6 +768,8 @@ a {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
+  position: relative;
+  z-index: 1;
 }
 
 .results-guide-card {
@@ -753,9 +779,10 @@ a {
   align-items: start;
   padding: 16px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(16, 33, 43, 0.08);
-  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  background: linear-gradient(180deg, rgba(13, 31, 44, 0.92), rgba(10, 26, 38, 0.88));
+  border: 1px solid rgba(148, 219, 238, 0.12);
+  box-shadow: 0 18px 40px rgba(2, 11, 19, 0.28);
 }
 
 .results-guide-card strong {
@@ -763,13 +790,16 @@ a {
   margin-bottom: 6px;
   font-family: "Space Grotesk", sans-serif;
   font-size: 0.95rem;
+  color: #f4fbff;
+  overflow-wrap: anywhere;
 }
 
 .results-guide-card p {
   margin: 0;
-  color: var(--ink-soft);
+  color: rgba(214, 232, 240, 0.76);
   line-height: 1.55;
   font-size: 0.92rem;
+  overflow-wrap: anywhere;
 }
 
 .results-guide-step {
@@ -787,6 +817,7 @@ a {
 .results-title {
   font-size: clamp(2rem, 3vw, 3.2rem);
   line-height: 0.95;
+  color: #f9fcff;
 }
 
 .results-pills {
@@ -795,21 +826,123 @@ a {
   gap: 10px;
 }
 
+.results-kicker {
+  color: rgba(140, 210, 230, 0.72);
+}
+
 .results-pill,
 .col-badge,
 .detail-link,
 .ic-tag,
 .sc-tag {
-  border: 1px solid rgba(16, 33, 43, 0.08);
-  background: rgba(255, 255, 255, 0.74);
-  color: var(--ink);
+  border: 1px solid rgba(148, 219, 238, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8f7ff;
   padding: 9px 12px;
   font-size: 0.86rem;
 }
 
 .results-pill.green {
-  background: rgba(30, 179, 167, 0.1);
-  color: #0b6d65;
+  background: rgba(30, 179, 167, 0.18);
+  color: #9ff5e3;
+}
+
+.results-telemetry {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 220px 260px minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.telemetry-card {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 219, 238, 0.12);
+  background: linear-gradient(180deg, rgba(13, 31, 44, 0.92), rgba(10, 26, 38, 0.88));
+  box-shadow: 0 18px 40px rgba(2, 11, 19, 0.24);
+}
+
+.telemetry-card-strong {
+  background: linear-gradient(180deg, rgba(16, 44, 59, 0.96), rgba(9, 28, 40, 0.92));
+}
+
+.telemetry-card-wide {
+  display: grid;
+  gap: 10px;
+}
+
+.telemetry-label,
+.telemetry-note,
+.telemetry-query,
+.telemetry-chip,
+.ic-context-item,
+.ic-kind,
+.sc-kicker,
+.sc-action-hint,
+.detail-link-meta,
+.detail-pill,
+.footer-pill {
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.telemetry-label {
+  margin: 0 0 6px;
+  color: rgba(140, 210, 230, 0.72);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+}
+
+.telemetry-value {
+  display: block;
+  color: #f5fbff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.telemetry-note {
+  margin: 8px 0 0;
+  color: rgba(214, 232, 240, 0.76);
+  line-height: 1.5;
+  font-size: 0.88rem;
+}
+
+.telemetry-chip-row,
+.telemetry-query-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.telemetry-chip,
+.telemetry-query {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 219, 238, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d7eef7;
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+.telemetry-chip.ok {
+  color: #9ff5e3;
+}
+
+.telemetry-chip.warn {
+  color: #ffd59c;
+}
+
+.telemetry-query {
+  background: rgba(30, 179, 167, 0.12);
+  color: #adfff0;
 }
 
 .results-grid {
@@ -817,11 +950,16 @@ a {
   grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
   gap: 20px;
   align-items: start;
+  position: relative;
+  z-index: 1;
 }
 
 .panel-surface {
   border-radius: var(--radius-xl);
   padding: 22px;
+  background: linear-gradient(180deg, rgba(8, 21, 33, 0.94), rgba(10, 18, 29, 0.96));
+  border: 1px solid rgba(148, 219, 238, 0.12);
+  box-shadow: 0 22px 46px rgba(2, 11, 19, 0.3);
 }
 
 .signals-col {
@@ -842,17 +980,23 @@ a {
   font-family: "Space Grotesk", sans-serif;
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--ink);
+  color: #f5fbff;
 }
 
 .col-badge {
   white-space: nowrap;
 }
 
+.col-kicker,
+.evidence-status,
+.detail-label {
+  color: rgba(140, 210, 230, 0.72);
+}
+
 .proof-badge {
   padding: 4px 9px;
-  background: rgba(223, 129, 49, 0.12);
-  color: #a35a18;
+  background: rgba(223, 129, 49, 0.2);
+  color: #ffd39d;
   font-size: 0.72rem;
   font-weight: 700;
   vertical-align: middle;
@@ -871,6 +1015,9 @@ a {
   transform: perspective(1000px) rotateX(var(--card-tilt-x, 0deg)) rotateY(var(--card-tilt-y, 0deg)) translateY(0);
   transform-style: preserve-3d;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  background: linear-gradient(180deg, rgba(13, 31, 44, 0.98), rgba(10, 24, 35, 0.94));
+  border: 1px solid rgba(148, 219, 238, 0.12);
+  box-shadow: 0 18px 34px rgba(2, 11, 19, 0.22);
 }
 
 .signal-card::before,
@@ -897,16 +1044,16 @@ a {
 .signal-card.active,
 .item-card:hover {
   transform: perspective(1000px) rotateX(var(--card-tilt-x, 0deg)) rotateY(var(--card-tilt-y, 0deg)) translateY(-4px);
-  border-color: rgba(21, 120, 111, 0.22);
-  box-shadow: var(--shadow-md);
+  border-color: rgba(127, 228, 249, 0.28);
+  box-shadow: 0 24px 48px rgba(2, 11, 19, 0.34);
 }
 
 .signal-card.active {
-  background: linear-gradient(145deg, rgba(30, 179, 167, 0.08), rgba(255, 255, 255, 0.96));
+  background: linear-gradient(145deg, rgba(30, 179, 167, 0.16), rgba(11, 28, 40, 0.98));
 }
 
 .item-card.official {
-  background: linear-gradient(145deg, rgba(30, 179, 167, 0.06), rgba(255, 255, 255, 0.98));
+  background: linear-gradient(145deg, rgba(30, 179, 167, 0.14), rgba(11, 28, 40, 0.96));
 }
 
 .sc-hero,
@@ -934,23 +1081,26 @@ a {
 
 .sc-meter {
   position: relative;
-  width: 78px;
-  min-width: 78px;
-  height: 78px;
+  width: 90px;
+  min-width: 90px;
+  min-height: 78px;
+  padding: 10px 8px;
   display: grid;
-  place-items: center;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(16, 33, 43, 0.08);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 219, 238, 0.12);
   text-align: center;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .sc-meter-ring {
   position: absolute;
   inset: 7px;
   border-radius: 18px;
-  border: 1px solid rgba(16, 33, 43, 0.08);
+  border: 1px solid rgba(148, 219, 238, 0.1);
 }
 
 .sc-meter.high {
@@ -970,7 +1120,7 @@ a {
   font-family: "Space Grotesk", sans-serif;
   font-size: 1.35rem;
   line-height: 1;
-  color: var(--ink);
+  color: #f8fcff;
 }
 
 .sc-meter-label,
@@ -987,7 +1137,7 @@ a {
 .sc-kicker,
 .ic-link-meaning,
 .detail-link-meta {
-  color: var(--ink-soft);
+  color: rgba(205, 225, 234, 0.78);
 }
 
 .sc-topline {
@@ -1010,17 +1160,17 @@ a {
   justify-content: center;
   border-radius: 999px;
   padding: 7px 10px;
-  border: 1px solid rgba(16, 33, 43, 0.08);
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(148, 219, 238, 0.12);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .sc-region {
-  color: var(--teal);
+  color: #93f2e0;
   font-weight: 700;
 }
 
 .sc-evidence {
-  color: var(--ink-soft);
+  color: rgba(218, 235, 242, 0.72);
 }
 
 .sc-kicker {
@@ -1049,7 +1199,8 @@ a {
   margin: 0;
   font-family: "Space Grotesk", sans-serif;
   font-weight: 700;
-  color: var(--ink);
+  color: #f7fbff;
+  overflow-wrap: anywhere;
 }
 
 .sc-title {
@@ -1061,6 +1212,8 @@ a {
 .ic-body,
 .detail-summary {
   margin: 12px 0 0;
+  color: rgba(214, 232, 240, 0.78);
+  overflow-wrap: anywhere;
 }
 
 .sc-footer {
@@ -1070,11 +1223,11 @@ a {
 
 .sc-tag,
 .ic-tag {
-  color: var(--ink-soft);
+  color: rgba(214, 232, 240, 0.76);
 }
 
 .sc-action-hint {
-  color: var(--ink-soft);
+  color: rgba(140, 210, 230, 0.72);
   font-size: 0.82rem;
   font-weight: 600;
 }
@@ -1110,7 +1263,7 @@ a {
   display: none;
   margin-top: 16px;
   padding: 18px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(241, 248, 248, 0.9));
+  background: linear-gradient(145deg, rgba(12, 32, 45, 0.98), rgba(10, 24, 35, 0.96));
 }
 
 .signal-detail.visible {
@@ -1142,6 +1295,7 @@ a {
   font-size: 1.6rem;
   letter-spacing: -0.03em;
   line-height: 1.02;
+  color: #f7fbff;
 }
 
 .detail-metrics {
@@ -1175,9 +1329,9 @@ a {
   padding: 14px;
   border-radius: 18px;
   min-height: 88px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.08);
   transform: perspective(1000px) rotateX(var(--card-tilt-x, 0deg)) rotateY(var(--card-tilt-y, 0deg)) translateY(0);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 14px 28px rgba(2, 11, 19, 0.22);
 }
 
 .detail-link-index {
@@ -1188,7 +1342,7 @@ a {
   border-radius: 12px;
   background: linear-gradient(135deg, rgba(21, 120, 111, 0.14), rgba(223, 129, 49, 0.14));
   font-weight: 800;
-  color: var(--ink);
+  color: #f8fcff;
 }
 
 .detail-link-copy {
@@ -1198,7 +1352,7 @@ a {
 }
 
 .detail-link-label {
-  color: var(--ink);
+  color: #f7fbff;
   font-family: "Space Grotesk", sans-serif;
 }
 
@@ -1221,6 +1375,7 @@ a {
 .evidence-status {
   margin: 0 0 14px;
   font-size: 0.92rem;
+  color: rgba(214, 232, 240, 0.78);
 }
 
 .ic-source-group {
@@ -1255,7 +1410,7 @@ a {
 
 .ic-source {
   border: 1px solid transparent;
-  color: var(--ink);
+  color: #effaff;
 }
 
 .ic-source.reddit { background: rgba(255, 103, 45, 0.12); color: #b44512; }
@@ -1265,11 +1420,11 @@ a {
 .ic-source.cdsco,
 .ic-source.nhm,
 .ic-source.data_gov { background: rgba(21, 120, 111, 0.12); color: #0f695f; }
-.ic-source.default { background: rgba(16, 33, 43, 0.08); color: var(--ink-soft); }
+.ic-source.default { background: rgba(255, 255, 255, 0.08); color: rgba(214, 232, 240, 0.76); }
 
 .ic-official {
   background: rgba(21, 120, 111, 0.1);
-  color: #0f695f;
+  color: #9ff5e3;
 }
 
 .ic-title {
@@ -1282,7 +1437,7 @@ a {
 }
 
 .ic-entity {
-  color: var(--ink);
+  color: #f4fbff;
   font-size: 0.8rem;
 }
 
@@ -1295,7 +1450,7 @@ a {
 }
 
 .ic-context-item {
-  color: var(--ink-soft);
+  color: rgba(214, 232, 240, 0.74);
   font-size: 0.8rem;
 }
 
@@ -1314,16 +1469,16 @@ a {
 }
 
 .ic-btn.secondary {
-  background: rgba(255, 255, 255, 0.82);
-  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f3fbff;
 }
 
 .empty-state {
   padding: 26px;
-  border: 1px dashed rgba(16, 33, 43, 0.16);
+  border: 1px dashed rgba(148, 219, 238, 0.18);
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.56);
-  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(214, 232, 240, 0.78);
   text-align: center;
   line-height: 1.6;
 }
@@ -1331,8 +1486,8 @@ a {
 mark {
   padding: 0.08em 0.28em;
   border-radius: 0.4em;
-  background: rgba(223, 129, 49, 0.22);
-  color: inherit;
+  background: rgba(223, 129, 49, 0.26);
+  color: #fff7ef;
 }
 
 .skeleton-card {
@@ -1482,6 +1637,7 @@ mark {
 
 @media (max-width: 920px) {
   .results-guide,
+  .results-telemetry,
   .results-grid,
   .trust-strip,
   .loading-state {
@@ -1573,6 +1729,11 @@ mark {
 
   .results-title {
     font-size: clamp(1.9rem, 10vw, 2.6rem);
+  }
+
+  .results-shell {
+    padding: 16px;
+    border-radius: 24px;
   }
 
   .panel-surface,

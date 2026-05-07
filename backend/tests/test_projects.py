@@ -131,6 +131,61 @@ class ProjectViewTests(unittest.TestCase):
             [item["title"] for item in analysis["items"]],
         )
 
+    def test_build_project_view_does_not_backfill_irrelevant_official_context(self) -> None:
+        """Unrelated government docs should not make arbitrary searches look fake or pre-canned."""
+
+        snapshot = {
+            "generated_at": "2026-05-07T00:00:00+00:00",
+            "items": [
+                {
+                    "source": "nhm",
+                    "source_label": "National Health Mission",
+                    "title": "Training Module for Programme Managers under NP-NCD",
+                    "body": "National Programme for Non-Communicable Diseases training module for program managers.",
+                    "url": "https://nhm.gov.in/example/ncd-training.pdf",
+                    "published_at": None,
+                    "region": "India",
+                    "official": True,
+                    "language": "en",
+                    "sentiment": "neutral",
+                    "adr_like": False,
+                    "entities": {},
+                    "tags": ["official"],
+                }
+            ],
+        }
+        project = {
+            "name": "Hair loss watch",
+            "description": "Focus on hair-loss chatter and treatment discussion.",
+            "keywords": ["hair loss"],
+            "sources": ["nhm", "google_news", "reddit"],
+            "latency_profile": "Realtime",
+        }
+
+        analysis = build_project_view(snapshot, project, focus_items=[])
+
+        self.assertEqual(analysis["metrics"]["item_count"], 0)
+        self.assertEqual(analysis["items"], [])
+
+    def test_build_project_view_exposes_focus_queries(self) -> None:
+        """The frontend should be able to explain what live searches were executed."""
+
+        snapshot = {
+            "generated_at": "2026-05-07T00:00:00+00:00",
+            "items": [],
+        }
+        project = {
+            "name": "Dengue watch",
+            "description": "Focus on dengue chatter.",
+            "keywords": ["dengue", "platelet"],
+            "sources": ["google_news", "reddit"],
+            "latency_profile": "Realtime",
+        }
+
+        analysis = build_project_view(snapshot, project, focus_items=[])
+
+        self.assertIn("india dengue platelet", analysis["focus_queries"])
+
     def test_build_project_view_rejects_partial_query_match_from_health_subreddit(self) -> None:
         """Focused search items should match the actual query terms, not just one keyword."""
 
