@@ -8,6 +8,7 @@ from threading import Lock
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import AppConfig
@@ -38,6 +39,12 @@ def create_app() -> FastAPI:
     frontend_dir = Path(__file__).resolve().parents[2] / "frontend"
     if frontend_dir.exists():
         app.mount("/app", StaticFiles(directory=frontend_dir, html=True), name="app")
+
+    @app.get("/", include_in_schema=False)
+    def portal_root() -> RedirectResponse:
+        """Make the domain root open the command-center UI directly."""
+
+        return RedirectResponse(url="/app/", status_code=307)
 
     @app.get("/health")
     def health() -> dict[str, str]:
