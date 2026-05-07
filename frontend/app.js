@@ -37,12 +37,19 @@ const elements = {
   projectKeywordsInput: document.getElementById("projectKeywordsInput"),
   projectLatencyInput: document.getElementById("projectLatencyInput"),
   projectSearchInput: document.getElementById("projectSearchInput"),
+  projectLibraryStatus: document.getElementById("projectLibraryStatus"),
   projectGallery: document.getElementById("projectGallery"),
+  overviewHeadline: document.getElementById("overviewHeadline"),
+  overviewBody: document.getElementById("overviewBody"),
+  overviewStats: document.getElementById("overviewStats"),
   launchCustomProjectButton: document.getElementById("launchCustomProjectButton"),
   sourceCheckboxes: document.getElementById("sourceCheckboxes"),
+  sourceRootList: document.getElementById("sourceRootList"),
+  sourceRootStatus: document.getElementById("sourceRootStatus"),
   officialOnlyInput: document.getElementById("officialOnlyInput"),
   loadDefaultProjectButton: document.getElementById("loadDefaultProjectButton"),
   searchInput: document.getElementById("searchInput"),
+  explorerStatus: document.getElementById("explorerStatus"),
   sourceFilter: document.getElementById("sourceFilter"),
 };
 
@@ -95,6 +102,19 @@ function cleanDisplayText(value) {
     .replace(/\*\*|__|~~|`+/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+
+function wrapEvidence(text, terms) {
+  if (!text) return "";
+  if (!terms || terms.length === 0) return text;
+  let safe = escapeHtml(text);
+  terms.forEach(t => {
+    if (!t) return;
+    const r = new RegExp('('+t+')', 'gi');
+    safe = safe.replace(r, '<mark style="background:var(--amber-soft); color:var(--amber); font-weight:bold; padding:0 4px; border-radius:4px;">$1</mark>');
+  });
+  return safe;
 }
 
 function escapeHtml(value) {
@@ -169,6 +189,76 @@ function getMvpSourceNames() {
     .map((source) => source.name);
 }
 
+function getSourceCatalogEntry(sourceName) {
+  return (state.research?.source_catalog ?? []).find((entry) => entry.name === sourceName) ?? null;
+}
+
+function findTrackedResource(entry, label) {
+  const target = String(label ?? "").trim().toLowerCase();
+  if (!target) {
+    return null;
+  }
+  return (entry?.resource_links ?? []).find(
+    (resource) => String(resource.label ?? "").trim().toLowerCase() === target,
+  ) ?? null;
+}
+
+function getActiveSourceCatalog() {
+  const activeSourceNames = state.selectedProject?.sources?.length
+    ? state.selectedProject.sources
+    : getMvpSourceNames();
+  return (state.research?.source_catalog ?? []).filter((entry) => activeSourceNames.includes(entry.name));
+}
+
+function buildSourceOrigin(item) {
+  const sourceName = String(item?.source ?? "");
+  const sourceLabel = String(item?.source_label ?? "").trim();
+  const entry = getSourceCatalogEntry(sourceName);
+  const fallback = {
+    label: entry?.label ?? sourceLabel ?? "Source root",
+    url: entry?.resource_url ?? item?.url ?? "#",
+  };
+
+  if (sourceName === "youtube" || sourceName === "telegram") {
+    const channelLabel = sourceLabel.split(":").slice(1).join(":").trim();
+    const tracked = findTrackedResource(entry, channelLabel);
+    return {
+      label: channelLabel ? `${sourceName === "youtube" ? "Channel" : "Broadcast"}: ${channelLabel}` : fallback.label,
+      url: tracked?.url ?? fallback.url,
+    };
+  }
+
+  if (sourceName === "reddit") {
+    if (sourceLabel.toLowerCase().startsWith("search:")) {
+      const query = sourceLabel.slice("search:".length).trim();
+      return {
+        label: query ? `Reddit query: ${query}` : fallback.label,
+        url: query ? `https://www.reddit.com/search/?q=${encodeURIComponent(query)}` : fallback.url,
+      };
+    }
+    if (sourceLabel.toLowerCase().startsWith("r/")) {
+      const subreddit = sourceLabel.slice(2).trim();
+      const tracked = findTrackedResource(entry, sourceLabel);
+      return {
+        label: subreddit ? `Subreddit: r/${subreddit}` : fallback.label,
+        url: tracked?.url ?? (subreddit ? `https://www.reddit.com/r/${encodeURIComponent(subreddit)}/` : fallback.url),
+      };
+    }
+  }
+
+  if (sourceName === "google_news") {
+    const query = sourceLabel.split(":").slice(1).join(":").trim();
+    return {
+      label: query ? `Google News query: ${query}` : fallback.label,
+      url: query
+        ? `https://news.google.com/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN&ceid=IN:en`
+        : fallback.url,
+    };
+  }
+
+  return fallback;
+}
+
 function getDefaultProjectIndex(project) {
   if (!project) {
     return -1;
@@ -213,6 +303,23 @@ async function activateProject(project) {
   window.localStorage.setItem("swasthyaSignals.project", JSON.stringify(state.selectedProject));
   renderProjectOptions();
   renderProjectLibrary();
+
+  const heroForm = document.getElementById("mainHeroSearch");
+  if (heroForm) {
+    heroForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const val = document.getElementById("heroSymptomInput").value.trim();
+      const proj = buildCustomProjectFromQuery(val);
+      if (proj) {
+        document.getElementById("heroSymptomInput").blur();
+        document.querySelector("#mainHeroSearch button").textContent = "Scanning...";
+        await activateProject(proj);
+        document.querySelector("#mainHeroSearch button").textContent = "Scan Live Reality →";
+      }
+    });
+  }
+
+  renderProjectLoadingState(project);
   await analyzeSelectedProject(false);
 }
 
@@ -274,9 +381,96 @@ function updateProjectBrief(project) {
   elements.latencyProfile.textContent = project.latency_profile;
 }
 
+function renderProjectLoadingState(project) {
+  const scopeName = project?.name ?? "this project";
+  updateProjectBrief(project);
+  renderSourceRoots();
+  renderOverview();
+  elements.metricGrid.innerHTML = '<div class="empty-state">Loading project metrics...</div>';
+  elements.timelineChart.innerHTML = '<div class="empty-state">Loading time-series view...</div>';
+  elements.compareBars.innerHTML = '<div class="empty-state">Loading comparison view...</div>';
+  elements.sourceStatusList.innerHTML = '<div class="empty-state">Refreshing source health...</div>';
+  elements.regionList.innerHTML = '<div class="empty-state">Loading region breakdown...</div>';
+  elements.signalGrid.innerHTML = `<div class="empty-state">Building the signal board for ${escapeHtml(scopeName)}...</div>`;
+  renderSignalDetail(null);
+  elements.explorerStatus.textContent = `Loading evidence for ${scopeName}...`;
+  elements.itemList.innerHTML = `<div class="empty-state">Loading the evidence explorer for ${escapeHtml(scopeName)}...</div>`;
+}
+
 function renderSnapshotMeta() {
   const generatedAt = state.snapshot?.generated_at;
   elements.lastSweep.textContent = generatedAt ? formatTimestamp(generatedAt) : "Awaiting refresh";
+}
+
+function renderOverview() {
+  const project = state.selectedProject;
+  const metrics = state.analysis?.metrics ?? null;
+  const activeSources = getActiveSourceCatalog();
+  const sourceStatuses = state.snapshot?.source_status ?? [];
+  const liveSourceCount = sourceStatuses.filter((status) => status.ok && status.item_count > 0).length;
+
+  if (!project) {
+    elements.overviewHeadline.textContent = "Choose a project to open the radar";
+    elements.overviewBody.textContent = "The top rail will summarize signal count, evidence scope, and source readiness as soon as a project is loaded.";
+    elements.overviewStats.innerHTML = [
+      ["Latency", "Ready", "Select or type a brief"],
+      ["Sources", "0", "No active sources yet"],
+      ["Signals", "0", "Explainable alerts appear here"],
+      ["Explorer", "Scoped", "Search stays inside one brief"],
+    ].map(
+      ([label, value, detail]) => `
+        <article class="overview-stat">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+          <p>${escapeHtml(detail)}</p>
+        </article>
+      `,
+    ).join("");
+    return;
+  }
+
+  if (metrics) {
+    elements.overviewHeadline.textContent = `${metrics.signal_count} explainable signals built from ${metrics.item_count} evidence items`;
+    elements.overviewBody.textContent = `${project.description} This brief currently mixes ${metrics.india_count} India-coded items with ${metrics.official_count} official anchors.`;
+  } else {
+    elements.overviewHeadline.textContent = `Loading ${project.name}`;
+    elements.overviewBody.textContent = "The brief shell, source roots, and project context are already visible while slower analysis finishes in the background.";
+  }
+
+  const overviewCards = [
+    {
+      label: "Latency",
+      value: project.latency_profile ?? "Realtime",
+      detail: "Refresh rhythm for this brief",
+    },
+    {
+      label: "Sources",
+      value: String(activeSources.length || project.sources?.length || 0),
+      detail: liveSourceCount > 0 ? `${liveSourceCount} sources active in the latest sweep` : "Waiting for the next live sweep",
+    },
+    {
+      label: "Signals",
+      value: metrics ? String(metrics.signal_count) : "Loading",
+      detail: metrics ? "Cards are ready for explainability review" : "Signal board is hydrating",
+    },
+    {
+      label: "Explorer",
+      value: metrics ? `${metrics.item_count} items` : "Scoped",
+      detail: metrics ? "Search and provenance stay inside this brief" : "Search remains project-only",
+    },
+  ];
+
+  elements.overviewStats.innerHTML = overviewCards
+    .map(
+      (card) => `
+        <article class="overview-stat">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${escapeHtml(card.value)}</strong>
+          <p>${escapeHtml(card.detail)}</p>
+        </article>
+      `,
+    )
+    .join("");
 }
 
 function renderLaneStrip() {
@@ -334,19 +528,29 @@ function renderLaneStrip() {
 
 function renderProjectLibrary() {
   if (!state.defaults.length) {
+    elements.projectLibraryStatus.textContent = "Loading project presets...";
     elements.projectGallery.innerHTML = '<div class="empty-state">Loading the project library...</div>';
     return;
   }
 
   const query = elements.projectSearchInput.value.trim().toLowerCase();
-  const visibleProjects = state.defaults.filter((project) => {
-    if (!query) {
-      return true;
-    }
-    const merged = `${project.name} ${project.description} ${(project.keywords ?? []).join(" ")}`.toLowerCase();
-    return merged.includes(query);
-  });
+  const visibleProjects = state.defaults
+    .map((project, defaultIndex) => ({ project, defaultIndex }))
+    .filter(({ project }) => {
+      if (!query) {
+        return true;
+      }
+      const merged = `${project.name} ${project.description} ${(project.keywords ?? []).join(" ")}`.toLowerCase();
+      return merged.includes(query);
+    });
   const customProject = buildCustomProjectFromQuery(elements.projectSearchInput.value);
+  const statusBits = [`Showing ${visibleProjects.length} of ${state.defaults.length} presets`];
+  if (customProject) {
+    statusBits.push("Press Enter or use Run typed issue to launch the custom brief");
+  } else if (!query) {
+    statusBits.push("Type any issue to create a custom brief");
+  }
+  elements.projectLibraryStatus.textContent = statusBits.join(" • ");
 
   if (!visibleProjects.length && !customProject) {
     elements.projectGallery.innerHTML = '<div class="empty-state">No projects match the current search.</div>';
@@ -376,7 +580,7 @@ function renderProjectLibrary() {
   }
 
   cards.push(
-    ...visibleProjects.map((project, index) => {
+    ...visibleProjects.map(({ project, defaultIndex }) => {
       const activeClass = state.selectedProject?.name === project.name ? "active" : "";
       const safeName = escapeHtml(project.name);
       const safeDescription = escapeHtml(project.description);
@@ -395,7 +599,7 @@ function renderProjectLibrary() {
           <div class="chip-row">${keywords}</div>
           <div class="project-card-footer">
             <span>${project.include_official_only ? "Official only" : "Open web + official"}</span>
-            <button class="action-button secondary small-button" type="button" data-project-index="${index}">Load project</button>
+            <button class="action-button secondary small-button" type="button" data-project-index="${defaultIndex}">Load project</button>
           </div>
         </article>
       `;
@@ -540,18 +744,20 @@ function renderSignals() {
         ? signal.tags.map((tag) => `<span class="chip alt">${tag}</span>`).join("")
         : '<span class="chip">Unclassified</span>';
       return `
-        <article class="signal-card ${activeClass}" data-signal-title="${escapeHtml(signal.title)}">
-          <div class="chip-row">
-            <span class="chip">${signal.region}</span>
-            ${tags}
-          </div>
-          <h3>${signal.title}</h3>
-          <p>${signal.summary}</p>
-          <div class="signal-footer">
-            <span>${signal.evidence_count} evidence items</span>
-            <span class="confidence">${signal.confidence}/100</span>
-          </div>
-        </article>
+        
+          <article class="signal-card ${activeClass}" data-signal-title="${escapeHtml(signal.title)}">
+            <div class="chip-row">
+              <span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">${signal.region}</span>
+              ${tags}
+            </div>
+            <h3 class="font-bold text-slate-900 text-lg mb-2 leading-tight">${signal.title}</h3>
+            <p class="text-sm text-slate-600 line-clamp-3 mb-4">${signal.summary}</p>
+            <div class="flex items-center justify-between mt-auto pt-3 border-t border-slate-100 text-xs font-semibold text-slate-500">
+              <span class="flex items-center gap-1"><svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg> ${signal.evidence_count} proofs</span>
+              <span class="text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1">Alert ${signal.confidence}</span>
+            </div>
+          </article>
+
       `;
     })
     .join("");
@@ -604,6 +810,44 @@ function renderSignalDetail(signal) {
     : '<div class="empty-state">No evidence links available for this signal.</div>';
 }
 
+function renderSourceRoots() {
+  const activeSources = getActiveSourceCatalog();
+  if (!activeSources.length) {
+    elements.sourceRootStatus.textContent = "Loading source roots...";
+    elements.sourceRootList.innerHTML = '<div class="empty-state">Source roots will appear once the project and research catalog load.</div>';
+    return;
+  }
+
+  const projectName = state.selectedProject?.name ?? "this project";
+  elements.sourceRootStatus.textContent = `${activeSources.length} active source roots for ${projectName}`;
+  elements.sourceRootList.innerHTML = activeSources
+    .map((source) => {
+      const primaryUrl = escapeHtml(safeExternalUrl(source.resource_url));
+      const trackedLinks = (source.resource_links ?? [])
+        .slice(0, 3)
+        .map((resource) => {
+          const safeUrl = escapeHtml(safeExternalUrl(resource.url));
+          return `<a class="resource-chip" href="${safeUrl}" target="_blank" rel="noreferrer">${escapeHtml(resource.label)}</a>`;
+        })
+        .join("");
+      return `
+        <article class="source-root-card">
+          <div class="catalog-meta">
+            <span>${source.mvp ? "Live now" : "Stretch"}</span>
+            <span>${escapeHtml(source.name)}</span>
+          </div>
+          <h3>${escapeHtml(source.label)}</h3>
+          <p>${escapeHtml(source.method)}</p>
+          <div class="item-actions">
+            <a class="link-button secondary-link" href="${primaryUrl}" target="_blank" rel="noreferrer">Open source root</a>
+          </div>
+          ${trackedLinks ? `<div class="resource-chip-row">${trackedLinks}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
 function populateSourceFilter() {
   const breakdown = state.analysis?.source_breakdown ?? [];
   const currentValue = elements.sourceFilter.value || "all";
@@ -623,6 +867,7 @@ function renderExplorer() {
   const items = state.analysis?.items ?? [];
   const query = elements.searchInput.value.trim().toLowerCase();
   const sourceFilter = elements.sourceFilter.value;
+  const scopeName = state.selectedProject?.name ?? "current project";
   const filtered = items.filter((item) => {
     const merged = `${cleanDisplayText(item.title)} ${cleanDisplayText(item.body)}`.toLowerCase();
     const matchesQuery = !query || merged.includes(query);
@@ -630,8 +875,22 @@ function renderExplorer() {
     return matchesQuery && matchesSource;
   });
 
+  const statusBits = [`${filtered.length} of ${items.length} evidence items`, scopeName];
+  if (query) {
+    statusBits.push(`query: ${query}`);
+  }
+  if (sourceFilter !== "all") {
+    statusBits.push(`source: ${sourceFilter}`);
+  }
+  elements.explorerStatus.textContent = statusBits.join(" • ");
+
   if (!filtered.length) {
-    elements.itemList.innerHTML = '<div class="empty-state">No evidence items match the current filters.</div>';
+    elements.itemList.innerHTML = `
+      <div class="empty-state">
+        No evidence items match the current filters inside ${escapeHtml(scopeName)}.
+        ${query ? `Try clearing "${escapeHtml(query)}" or switch to another project.` : "Try another source filter or switch projects."}
+      </div>
+    `;
     return;
   }
 
@@ -639,12 +898,14 @@ function renderExplorer() {
     .map((item) => {
       const safeTitle = escapeHtml(cleanDisplayText(item.title));
       const safeBody = escapeHtml(cleanDisplayText(item.body || "No body text available."));
-      const safeSourceLabel = escapeHtml(item.source_label);
+      const safeSourceLabel = escapeHtml(item.source_label || item.source);
       const safeRegion = escapeHtml(item.region);
       const safeSentiment = escapeHtml(item.sentiment);
       const safeUrl = escapeHtml(safeExternalUrl(item.url));
-      const linkLabel = escapeHtml(formatExternalLabel(item.url));
-      const chips = Object.values(item.entities)
+      const sourceOrigin = buildSourceOrigin(item);
+      const safeOriginLabel = escapeHtml(sourceOrigin.label);
+      const safeOriginUrl = escapeHtml(safeExternalUrl(sourceOrigin.url));
+      const chips = Object.values(item.entities ?? {})
         .flat()
         .slice(0, 6)
         .map((value) => `<span class="chip">${escapeHtml(value)}</span>`)
@@ -659,8 +920,13 @@ function renderExplorer() {
           </div>
           <h3>${safeTitle}</h3>
           <p>${safeBody}</p>
+          <p class="item-trace"><strong>Fetched via:</strong> ${safeSourceLabel}</p>
+          <p class="item-trace"><strong>Root source:</strong> ${safeOriginLabel}</p>
           <div class="chip-row">${chips || '<span class="chip alt">No matched entities</span>'}</div>
-          <p><a href="${safeUrl}" target="_blank" rel="noreferrer">${linkLabel}</a></p>
+          <div class="item-actions">
+            <a class="link-button primary-link" href="${safeUrl}" target="_blank" rel="noreferrer">Open fetched item</a>
+            <a class="link-button secondary-link" href="${safeOriginUrl}" target="_blank" rel="noreferrer">Open source root</a>
+          </div>
         </article>
       `;
     })
@@ -735,7 +1001,26 @@ function hydrateForm(project) {
 function renderAll() {
   renderProjectOptions();
   renderProjectLibrary();
+
+  const heroForm = document.getElementById("mainHeroSearch");
+  if (heroForm) {
+    heroForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const val = document.getElementById("heroSymptomInput").value.trim();
+      const proj = buildCustomProjectFromQuery(val);
+      if (proj) {
+        document.getElementById("heroSymptomInput").blur();
+        document.querySelector("#mainHeroSearch button").textContent = "Scanning...";
+        await activateProject(proj);
+        document.querySelector("#mainHeroSearch button").textContent = "Scan Live Reality →";
+      }
+    });
+  }
+
+  updateProjectBrief(state.selectedProject);
+  renderSourceRoots();
   renderSnapshotMeta();
+  renderOverview();
   renderLaneStrip();
   renderMetrics();
   renderTimeline();
@@ -744,11 +1029,10 @@ function renderAll() {
   populateSourceFilter();
   renderExplorer();
   renderResearch();
-  updateProjectBrief(state.selectedProject);
 }
 
 async function refreshSnapshot() {
-  state.snapshot = await requestJson("/api/v1/snapshot", { timeoutMs: 12000 });
+  state.snapshot = await requestJson("/api/v1/snapshot", { timeoutMs: 70000 });
 }
 
 async function refreshSnapshotLive() {
@@ -760,7 +1044,7 @@ async function analyzeSelectedProject(refresh = false) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(state.selectedProject),
-    timeoutMs: refresh ? 45000 : 20000,
+    timeoutMs: refresh ? 90000 : 70000,
   });
   renderAll();
 }
@@ -775,6 +1059,22 @@ async function initialize() {
     state.research = researchPayload;
     renderProjectOptions();
     renderProjectLibrary();
+
+  const heroForm = document.getElementById("mainHeroSearch");
+  if (heroForm) {
+    heroForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const val = document.getElementById("heroSymptomInput").value.trim();
+      const proj = buildCustomProjectFromQuery(val);
+      if (proj) {
+        document.getElementById("heroSymptomInput").blur();
+        document.querySelector("#mainHeroSearch button").textContent = "Scanning...";
+        await activateProject(proj);
+        document.querySelector("#mainHeroSearch button").textContent = "Scan Live Reality →";
+      }
+    });
+  }
+
     renderSourceCheckboxes();
 
     state.selectedProject = getStartupProject() ?? state.defaults[0] ?? null;
@@ -784,6 +1084,7 @@ async function initialize() {
     }
 
     hydrateForm(state.selectedProject);
+    renderProjectLoadingState(state.selectedProject);
     await refreshSnapshot();
     await analyzeSelectedProject(false);
   } catch (error) {
@@ -839,6 +1140,16 @@ elements.loadDefaultProjectButton.addEventListener("click", async () => {
 });
 
 elements.projectSearchInput.addEventListener("input", renderProjectLibrary);
+elements.projectSearchInput.addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter") {
+    return;
+  }
+  event.preventDefault();
+  const project = buildCustomProjectFromQuery(elements.projectSearchInput.value);
+  if (project) {
+    await activateProject(project);
+  }
+});
 elements.launchCustomProjectButton.addEventListener("click", async () => {
   const project = buildCustomProjectFromQuery(elements.projectSearchInput.value);
   if (project) {
