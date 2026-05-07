@@ -41,6 +41,32 @@ Open:
 - Live snapshot: http://127.0.0.1:8011/api/v1/snapshot?refresh=true
 - Frontend: http://127.0.0.1:8011/app/
 
+## Server Deployment
+
+This repo now includes a production container path for the VPS deployment at:
+
+- `swasthyasignals.aidhunik.com`
+- `swasthyasignals.lehana.in`
+
+Artifacts:
+
+- [backend/Dockerfile](backend/Dockerfile): production FastAPI + static frontend image
+- [deploy/docker-compose.yml](deploy/docker-compose.yml): Traefik-enabled service definition for the server
+
+Expected server layout:
+
+- Repo checkout: `/root/ideas/SwasthyaSignals`
+- Run from: `/root/ideas/SwasthyaSignals/deploy`
+
+Bring it up on the server:
+
+```bash
+cd /root/ideas/SwasthyaSignals/deploy
+docker compose up -d --build
+```
+
+This compose file attaches to the existing `root_default` Docker network and exposes the service through Traefik using a dual-domain `HostRegexp` rule for `swasthyasignals`.
+
 ## API Surface
 
 - `GET /health`: service health payload

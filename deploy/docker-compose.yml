@@ -1,0 +1,42 @@
+services:
+  swasthyasignals:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: swasthyasignals
+    restart: unless-stopped
+    environment:
+      SERVER_HOST: swasthyasignals.aidhunik.com
+      SWASTHYA_TIMEOUT: "20"
+      SWASTHYA_MAX_ITEMS: "10"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - swasthyasignals_data:/srv/swasthyasignals/backend/data
+    networks:
+      - root_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=root_default"
+      - "traefik.http.routers.swasthyasignals.entrypoints=websecure"
+      - "traefik.http.routers.swasthyasignals.rule=HostRegexp(`^(vps-)?swasthyasignals\\.(lehana\\.in|aidhunik\\.com)$`)"
+      - "traefik.http.routers.swasthyasignals.priority=110"
+      - "traefik.http.routers.swasthyasignals.tls=true"
+      - "traefik.http.services.swasthyasignals.loadbalancer.server.port=8000"
+
+networks:
+  root_default:
+    external: true
+
+volumes:
+  swasthyasignals_data:

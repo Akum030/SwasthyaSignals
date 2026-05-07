@@ -1,0 +1,13 @@
+.git
+.github
+.gitignore
+.venv
+__pycache__/
+*.py[cod]
+
+backend/data/latest_snapshot.json
+backend/data/snapshot_history.jsonl
+
+node_modules/
+dist/
+build/
