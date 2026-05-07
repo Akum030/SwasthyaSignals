@@ -23,8 +23,6 @@ const el = {
   signalList: document.getElementById("signalList"),
   signalCount: document.getElementById("signalCount"),
   signalDetail: document.getElementById("signalDetail"),
-  signalDetailSummary: document.getElementById("signalDetailSummary"),
-  signalDetailLinks: document.getElementById("signalDetailLinks"),
   evidenceList: document.getElementById("evidenceList"),
   evidenceCount: document.getElementById("evidenceCount"),
   evidenceStatus: document.getElementById("evidenceStatus"),
@@ -58,6 +56,71 @@ function formatSourceLabel(src) {
 function confBadge(n) {
   n = Number(n); const cls = n>=70?"high":n>=40?"med":"low"; const lbl = n>=70?"High":n>=40?"Medium":"Low";
   return `<span class="sc-conf ${cls}">${lbl} ${n}</span>`;
+}
+function confidenceWord(n) {
+  n = Number(n);
+  return n >= 70 ? "High confidence" : n >= 40 ? "Medium confidence" : "Low confidence";
+}
+function truncate(text, limit) {
+  const value = cleanText(text);
+  return value.length > limit ? value.slice(0, limit - 1) + "…" : value;
+}
+function hostLabel(value) {
+  try { return new URL(String(value), location.origin).hostname.replace(/^www\./, ""); }
+  catch { return "source"; }
+}
+function formatTime(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+function evidenceKind(item) {
+  if (item?.official) return "Official reference";
+  if (item?.source === "reddit") return "Community thread";
+  if (item?.source === "youtube") return "Video mention";
+  if (item?.source === "google_news") return "News coverage";
+  if (item?.source === "telegram") return "Telegram post";
+  if (item?.source === "cdsco" || item?.source === "nhm" || item?.source === "data_gov") return "Public document";
+  return "Web evidence";
+}
+function primaryActionLabel(item) {
+  if (item?.official) return "Open official source";
+  if (item?.source === "reddit") return "Open Reddit thread";
+  if (item?.source === "youtube") return "Open video source";
+  if (item?.source === "google_news") return "Open article or listing";
+  if (item?.source === "telegram") return "Open Telegram post";
+  return "Open original evidence";
+}
+function secondaryActionLabel(item) {
+  if (!item?.source) return "Open source root";
+  return `Browse ${formatSourceLabel(item.source)}`;
+}
+function attachMotionCards(root = document) {
+  if (!window.matchMedia("(hover: hover)").matches) return;
+  const scoped = root.matches?.("[data-tilt-card]") ? [root, ...root.querySelectorAll("[data-tilt-card]")] : root.querySelectorAll("[data-tilt-card]");
+  scoped.forEach(card => {
+    if (card.dataset.motionBound === "1") return;
+    card.dataset.motionBound = "1";
+    const reset = () => {
+      card.style.setProperty("--card-tilt-x", "0deg");
+      card.style.setProperty("--card-tilt-y", "0deg");
+      card.style.setProperty("--card-glow-x", "50%");
+      card.style.setProperty("--card-glow-y", "50%");
+    };
+    card.addEventListener("mousemove", event => {
+      const rect = card.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const px = (event.clientX - rect.left) / rect.width;
+      const py = (event.clientY - rect.top) / rect.height;
+      card.style.setProperty("--card-tilt-x", `${((0.5 - py) * 8).toFixed(2)}deg`);
+      card.style.setProperty("--card-tilt-y", `${((px - 0.5) * 10).toFixed(2)}deg`);
+      card.style.setProperty("--card-glow-x", `${(px * 100).toFixed(1)}%`);
+      card.style.setProperty("--card-glow-y", `${(py * 100).toFixed(1)}%`);
+    });
+    card.addEventListener("mouseleave", reset);
+    reset();
+  });
 }
 async function fetchJson(path, opts={}) {
   const ctrl = new AbortController();
@@ -115,46 +178,99 @@ function renderSignals(signals) {
     el.signalList.innerHTML = `<div class="empty-state">No health signals detected for this keyword.<br>Try a more specific term like a drug name or disease.</div>`;
     el.signalDetail.classList.remove("visible"); return;
   }
-  el.signalList.innerHTML = signals.map(sig => {
+  el.signalList.innerHTML = signals.map((sig, idx) => {
     const active = state.selectedSignal?.title === sig.title ? " active" : "";
-    const tags = (sig.tags||[]).slice(0,3).map(t=>`<span class="sc-tag t">${esc(t)}</span>`).join("");
-    return `<article class="signal-card${active}" data-title="${esc(sig.title)}">
-      <div class="sc-top"><span class="sc-title">${esc(sig.title)}</span>${confBadge(sig.confidence)}</div>
-      <p class="sc-summary">${esc(cleanText(sig.summary))}</p>
-      <div class="sc-footer"><span class="sc-tag">${esc(sig.region)}</span>${tags}<span class="sc-proofs">${sig.evidence_count} proofs</span></div>
+    const score = Number(sig.confidence ?? 0);
+    const level = score >= 70 ? "high" : score >= 40 ? "med" : "low";
+    const tags = (sig.tags||[]).slice(0,3).map(t=>`<span class="sc-tag">${esc(t)}</span>`).join("");
+    const leadTag = cleanText((sig.tags || [])[0] || "Detected pattern");
+    return `<article class="signal-card${active}" data-title="${esc(sig.title)}" data-tilt-card tabindex="0" role="button" aria-pressed="${active ? "true" : "false"}">
+      <div class="sc-hero">
+        <div class="sc-meter ${level}">
+          <span class="sc-meter-ring"></span>
+          <strong class="sc-meter-value">${score}</strong>
+          <span class="sc-meter-label">${esc(confidenceWord(score))}</span>
+        </div>
+        <div class="sc-copy">
+          <div class="sc-topline">
+            <span class="sc-region">${esc(sig.region || "India")}</span>
+            <span class="sc-evidence">${sig.evidence_count} linked proofs</span>
+          </div>
+          <p class="sc-kicker">Signal ${idx + 1} · ${esc(leadTag)}</p>
+          <h3 class="sc-title">${esc(sig.title)}</h3>
+        </div>
+      </div>
+      <p class="sc-summary">${esc(truncate(sig.summary, 170))}</p>
+      <div class="sc-footer">${tags}<span class="sc-action-hint">Select to inspect why this signal fired</span></div>
     </article>`;
   }).join("");
   el.signalList.querySelectorAll(".signal-card").forEach(card => {
-    card.addEventListener("click", () => {
+    const activate = () => {
       const sig = signals.find(s=>s.title===card.dataset.title); if (!sig) return;
       state.selectedSignal = sig;
-      el.signalList.querySelectorAll(".signal-card").forEach(c=>c.classList.remove("active"));
+      el.signalList.querySelectorAll(".signal-card").forEach(c => {
+        c.classList.remove("active");
+        c.setAttribute("aria-pressed", "false");
+      });
       card.classList.add("active");
+      card.setAttribute("aria-pressed", "true");
       renderSignalDetail(sig);
+    };
+    card.addEventListener("click", activate);
+    card.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        activate();
+      }
     });
   });
   if (!state.selectedSignal) { state.selectedSignal = signals[0]; el.signalList.querySelector(".signal-card")?.classList.add("active"); renderSignalDetail(signals[0]); }
   else renderSignalDetail(state.selectedSignal);
+  attachMotionCards(el.signalList);
 }
 
 function renderSignalDetail(sig) {
   if (!sig) { el.signalDetail.classList.remove("visible"); return; }
   el.signalDetail.classList.add("visible");
-  el.signalDetailSummary.textContent = cleanText(sig.summary);
   const links = [...(sig.official_references||[]),...(sig.example_urls||[])].slice(0,6);
-  el.signalDetailLinks.innerHTML = links.length ? links.map(url => {
-    const safe = safeUrl(url); if (safe==="#") return "";
+  const tagList = [sig.region, ...(sig.tags || []).slice(0, 3)].filter(Boolean);
+  const score = Number(sig.confidence ?? 0);
+  const renderedLinks = links.length ? links.map((url, idx) => {
+    const safe = safeUrl(url); if (safe === "#") return "";
     let lbl = "Open source";
-    try { const h = new URL(safe).hostname.replace(/^www\./,"");
-      if (h.includes("reddit")) lbl="Reddit thread";
-      else if (h.includes("youtube")) lbl="YouTube video";
-      else if (h.includes("cdsco")) lbl="CDSCO official";
-      else if (h.includes("nhm")) lbl="NHM source";
-      else if (h.includes("data.gov")) lbl="data.gov.in";
-      else if (h.includes("news.google")) lbl="Google News";
-      else lbl=h; } catch {}
-    return `<a class="detail-link" href="${esc(safe)}" target="_blank" rel="noreferrer"><svg class="dl-icon" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>${esc(lbl)}</a>`;
-  }).join("") : `<p style="font-size:.83rem;color:var(--ink-f);">No direct source links for this signal.</p>`;
+    let kind = "Direct source";
+    try {
+      const h = new URL(safe).hostname.replace(/^www\./, "");
+      if (h.includes("reddit")) { lbl = "Open Reddit thread"; kind = "Community discussion"; }
+      else if (h.includes("youtube")) { lbl = "Open YouTube video"; kind = "Video evidence"; }
+      else if (h.includes("cdsco")) { lbl = "Open CDSCO reference"; kind = "Official reference"; }
+      else if (h.includes("nhm")) { lbl = "Open NHM source"; kind = "Official reference"; }
+      else if (h.includes("data.gov")) { lbl = "Open data.gov.in entry"; kind = "Public dataset"; }
+      else if (h.includes("news.google")) { lbl = "Open Google News listing"; kind = "News listing"; }
+      else { lbl = `Open ${h}`; kind = "External source"; }
+      return `<a class="detail-link detail-link-card" href="${esc(safe)}" target="_blank" rel="noreferrer" data-tilt-card>
+        <span class="detail-link-index">${String(idx + 1).padStart(2, "0")}</span>
+        <span class="detail-link-copy">
+          <strong class="detail-link-label">${esc(lbl)}</strong>
+          <span class="detail-link-meta">${esc(kind)} · ${esc(h)}</span>
+        </span>
+        <svg class="dl-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </a>`;
+    } catch { return ""; }
+  }).join("") : `<div class="empty-state">No direct source links for this signal yet.</div>`;
+  el.signalDetail.innerHTML = `<div class="detail-shell" data-tilt-card>
+    <div class="detail-head">
+      <div>
+        <p class="detail-label">Selected signal</p>
+        <h3 class="detail-title">${esc(sig.title)}</h3>
+      </div>
+      <div class="detail-metrics">${confBadge(score)}<span class="detail-pill">${sig.evidence_count} evidence links</span></div>
+    </div>
+    <p class="detail-summary">${esc(cleanText(sig.summary))}</p>
+    ${tagList.length ? `<div class="detail-tags">${tagList.map(tag => `<span class="sc-tag">${esc(tag)}</span>`).join("")}</div>` : ""}
+    <div class="detail-links">${renderedLinks}</div>
+  </div>`;
+  attachMotionCards(el.signalDetail);
 }
 
 /* ---- Render: evidence ---- */
@@ -194,17 +310,28 @@ function renderEvidence(items) {
     const body = cleanText(item.body||""); const snippet = body.length>320?body.slice(0,320)+"…":body;
     const url = safeUrl(item.url); const rootUrl = buildSourceUrl(item);
     const tags = [item.region,item.sentiment].filter(Boolean);
-    return `<article class="item-card" style="animation-delay:${Math.min(idx*.04,.4)}s">
-      <div class="ic-top"><span class="ic-source ${srcCls}">${esc(srcLbl)}</span>${item.official?`<span class="ic-official">&#10003; Official</span>`:""}</div>
-      ${title?`<p class="ic-title">${highlight(title,kws)}</p>`:""}
+    const entities = Array.isArray(item.entities) ? item.entities.slice(0,4) : [];
+    const timeLabel = formatTime(item.timestamp);
+    const kind = evidenceKind(item);
+    const host = hostLabel(url !== "#" ? url : rootUrl);
+    const primaryLabel = primaryActionLabel(item);
+    return `<article class="item-card${item.official ? " official" : ""}" style="animation-delay:${Math.min(idx*.04,.4)}s" data-tilt-card>
+      <div class="ic-top">
+        <div class="ic-source-group"><span class="ic-index">${String(idx + 1).padStart(2, "0")}</span><span class="ic-source ${srcCls}">${esc(srcLbl)}</span>${item.official?`<span class="ic-official">&#10003; Official</span>`:""}</div>
+        <span class="ic-kind">${esc(kind)}</span>
+      </div>
+      ${title?`<h3 class="ic-title">${highlight(title,kws)}</h3>`:""}
       ${snippet?`<p class="ic-body">${highlight(snippet,kws)}</p>`:""}
-      ${tags.length?`<div class="ic-meta">${tags.map(t=>`<span class="ic-tag">${esc(t)}</span>`).join("")}</div>`:""}
+      ${entities.length?`<div class="ic-entities">${entities.map(entity=>`<span class="ic-entity">${esc(entity)}</span>`).join("")}</div>`:""}
+      ${(tags.length || timeLabel || host)?`<div class="ic-context">${tags.map(t=>`<span class="ic-context-item">${esc(t)}</span>`).join("")}${timeLabel?`<span class="ic-context-item">${esc(timeLabel)}</span>`:""}${host?`<span class="ic-context-item">${esc(host)}</span>`:""}</div>`:""}
+      <p class="ic-link-meaning">${esc(primaryLabel)}${host ? ` from ${esc(host)}` : ""}</p>
       <div class="ic-actions">
-        ${url!=="#"?`<a class="ic-btn primary" href="${esc(url)}" target="_blank" rel="noreferrer"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg> View original post</a>`:""}
-        ${rootUrl!=="#"&&rootUrl!==url?`<a class="ic-btn secondary" href="${esc(rootUrl)}" target="_blank" rel="noreferrer">Open source root</a>`:""}
+        ${url!=="#"?`<a class="ic-btn primary" href="${esc(url)}" target="_blank" rel="noreferrer"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg> ${esc(primaryLabel)}</a>`:""}
+        ${rootUrl!=="#"&&rootUrl!==url?`<a class="ic-btn secondary" href="${esc(rootUrl)}" target="_blank" rel="noreferrer">${esc(secondaryActionLabel(item))}</a>`:""}
       </div>
     </article>`;
   }).join("");
+  attachMotionCards(el.evidenceList);
 }
 
 /* ---- Meta pills ---- */
@@ -251,4 +378,5 @@ el.evidenceSource.addEventListener("change", () => renderEvidence(state.analysis
     const [d,r] = await Promise.all([fetchJson("/api/v1/projects/defaults",{timeoutMs:10000}), fetchJson("/api/v1/research",{timeoutMs:10000})]);
     state.defaults = d.projects ?? []; state.research = r;
   } catch { /* silently ignore */ }
+  attachMotionCards(document);
 })();

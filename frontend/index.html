@@ -52,10 +52,12 @@
         <p class="hero-sub">SwasthyaSignals scans public patient chatter, news coverage, and Indian official references, then turns it into one readable view with links back to the original source.</p>
 
         <form id="heroSearchForm" class="search-box">
-          <svg class="search-icon" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="7"></circle>
-            <path stroke-linecap="round" stroke-linejoin="round" d="M20 20L16.65 16.65"></path>
-          </svg>
+          <span class="search-icon-shell" aria-hidden="true">
+            <svg class="search-icon" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20 20L16.65 16.65"></path>
+            </svg>
+          </span>
           <label class="sr-only" for="heroInput">Search a disease, symptom, or medicine</label>
           <input id="heroInput" type="search" class="search-input" placeholder="Try Dengue, Metformin, Vitamin D deficiency, Hair loss" autocomplete="off" required>
           <button id="heroBtn" type="submit" class="search-btn">Run live scan</button>
@@ -108,6 +110,11 @@
             <circle cx="120" cy="214" r="6" class="radar-node radar-node-b"></circle>
             <circle cx="88" cy="126" r="5" class="radar-node radar-node-c"></circle>
           </svg>
+          <div class="hero-signal-stack" aria-hidden="true">
+            <div class="hero-signal-pill hero-signal-pill-a"><span></span>Patients</div>
+            <div class="hero-signal-pill hero-signal-pill-b"><span></span>News</div>
+            <div class="hero-signal-pill hero-signal-pill-c"><span></span>Official</div>
+          </div>
           <div class="hero-visual-copy">
             <p class="visual-label">One search, three evidence layers</p>
             <h2>Read the signal, then inspect the proof.</h2>
@@ -177,6 +184,30 @@
         <div class="results-pills" id="metaPills"></div>
       </div>
 
+      <div class="results-guide">
+        <article class="results-guide-card">
+          <span class="results-guide-step">1</span>
+          <div>
+            <strong>Start with the signal cards</strong>
+            <p>These summarize the main pattern detected from the incoming evidence.</p>
+          </div>
+        </article>
+        <article class="results-guide-card">
+          <span class="results-guide-step">2</span>
+          <div>
+            <strong>Use the proof feed</strong>
+            <p>Each evidence card tells you what kind of link it opens before you click it.</p>
+          </div>
+        </article>
+        <article class="results-guide-card">
+          <span class="results-guide-step">3</span>
+          <div>
+            <strong>Open source roots for context</strong>
+            <p>Secondary links widen the view so users can inspect the broader conversation.</p>
+          </div>
+        </article>
+      </div>
+
       <div class="results-grid">
         <aside class="signals-col panel-surface">
           <div class="col-header">
@@ -187,11 +218,7 @@
             <span class="col-badge" id="signalCount"></span>
           </div>
           <div id="signalList" class="stack-list"></div>
-          <div id="signalDetail" class="signal-detail">
-            <p class="detail-label">Selected signal</p>
-            <p id="signalDetailSummary" class="detail-summary"></p>
-            <div class="detail-links" id="signalDetailLinks"></div>
-          </div>
+          <div id="signalDetail" class="signal-detail"></div>
         </aside>
 
         <section class="evidence-col panel-surface">
@@ -221,8 +248,19 @@
 
   <footer class="site-footer">
     <div class="site-footer-inner">
-      <strong>SwasthyaSignals</strong>
-      <span>India-first public-health early-warning interface built for readability, speed, and source trust.</span>
+      <div class="footer-brand">
+        <span class="footer-brand-mark">SS</span>
+        <div>
+          <strong>SwasthyaSignals</strong>
+          <span>India-first public-health early-warning interface.</span>
+        </div>
+      </div>
+      <div class="footer-pills">
+        <span class="footer-pill">Source-linked</span>
+        <span class="footer-pill">Readable summaries</span>
+        <span class="footer-pill">Official context</span>
+      </div>
+      <p class="footer-note">Built to help people understand what a result means before opening the underlying thread, article, or document.</p>
     </div>
   </footer>
 
