@@ -47,11 +47,39 @@ const elements = {
 };
 
 async function requestJson(path, options = {}) {
-  const response = await fetch(path, options);
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+  const timeoutMs = options.timeoutMs ?? 20000;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(path, {
+      ...options,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Request timed out");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-  return response.json();
+}
+
+function showDashboardError(message) {
+  elements.metricGrid.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
+}
+
+function getStartupProject() {
+  try {
+    const savedProject = window.localStorage.getItem("swasthyaSignals.project");
+    return savedProject ? JSON.parse(savedProject) : null;
+  } catch {
+    return null;
+  }
 }
 
 function cleanDisplayText(value) {
@@ -180,6 +208,7 @@ function buildCustomProjectFromQuery(query) {
 
 async function activateProject(project) {
   state.selectedProject = project;
+  state.selectedSignal = null;
   hydrateForm(project);
   window.localStorage.setItem("swasthyaSignals.project", JSON.stringify(state.selectedProject));
   renderProjectOptions();
@@ -189,6 +218,14 @@ async function activateProject(project) {
 
 function renderProjectOptions() {
   elements.projectSelect.innerHTML = "";
+  const placeholderOption = document.createElement("option");
+  placeholderOption.value = "";
+  placeholderOption.textContent = state.defaults.length
+    ? "Select a project brief"
+    : "Loading project briefs...";
+  placeholderOption.disabled = true;
+  elements.projectSelect.append(placeholderOption);
+
   state.defaults.forEach((project, index) => {
     const option = document.createElement("option");
     option.value = String(index);
@@ -203,7 +240,12 @@ function renderProjectOptions() {
     customOption.textContent = `${state.selectedProject.name} (custom)`;
     elements.projectSelect.append(customOption);
   }
-  elements.projectSelect.value = selectedIndex >= 0 ? String(selectedIndex) : "custom";
+  elements.projectSelect.disabled = state.defaults.length === 0;
+  elements.projectSelect.value = selectedIndex >= 0
+    ? String(selectedIndex)
+    : state.selectedProject
+      ? "custom"
+      : "";
 }
 
 function renderSourceCheckboxes() {
@@ -221,6 +263,12 @@ function renderSourceCheckboxes() {
 }
 
 function updateProjectBrief(project) {
+  if (!project) {
+    elements.projectName.textContent = "Choose a project brief";
+    elements.projectDescription.textContent = "Pick a preset or search your own issue below to open the dashboard.";
+    elements.latencyProfile.textContent = "Ready";
+    return;
+  }
   elements.projectName.textContent = project.name;
   elements.projectDescription.textContent = project.description;
   elements.latencyProfile.textContent = project.latency_profile;
@@ -285,6 +333,11 @@ function renderLaneStrip() {
 }
 
 function renderProjectLibrary() {
+  if (!state.defaults.length) {
+    elements.projectGallery.innerHTML = '<div class="empty-state">Loading the project library...</div>';
+    return;
+  }
+
   const query = elements.projectSearchInput.value.trim().toLowerCase();
   const visibleProjects = state.defaults.filter((project) => {
     if (!query) {
@@ -695,7 +748,11 @@ function renderAll() {
 }
 
 async function refreshSnapshot() {
-  state.snapshot = await requestJson("/api/v1/snapshot?refresh=true");
+  state.snapshot = await requestJson("/api/v1/snapshot", { timeoutMs: 12000 });
+}
+
+async function refreshSnapshotLive() {
+  state.snapshot = await requestJson("/api/v1/snapshot?refresh=true", { timeoutMs: 45000 });
 }
 
 async function analyzeSelectedProject(refresh = false) {
@@ -703,6 +760,7 @@ async function analyzeSelectedProject(refresh = false) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(state.selectedProject),
+    timeoutMs: refresh ? 45000 : 20000,
   });
   renderAll();
 }
@@ -719,16 +777,18 @@ async function initialize() {
     renderProjectLibrary();
     renderSourceCheckboxes();
 
-    const savedProject = window.localStorage.getItem("swasthyaSignals.project");
-    state.selectedProject = savedProject
-      ? JSON.parse(savedProject)
-      : state.defaults[0];
+    state.selectedProject = getStartupProject() ?? state.defaults[0] ?? null;
+
+    if (!state.selectedProject) {
+      throw new Error("No project briefs are available yet.");
+    }
 
     hydrateForm(state.selectedProject);
     await refreshSnapshot();
     await analyzeSelectedProject(false);
   } catch (error) {
-    elements.metricGrid.innerHTML = `<div class="empty-state">Unable to load the dashboard: ${error.message}</div>`;
+    showDashboardError(`Unable to load the dashboard: ${error.message}`);
+    updateProjectBrief(null);
   }
 }
 
@@ -742,10 +802,20 @@ elements.projectSelect.addEventListener("change", async (event) => {
 elements.refreshButton.addEventListener("click", async () => {
   elements.refreshButton.disabled = true;
   elements.refreshButton.textContent = "Refreshing…";
-  await refreshSnapshot();
-  await analyzeSelectedProject(false);
-  elements.refreshButton.disabled = false;
-  elements.refreshButton.textContent = "Refresh live radar";
+  try {
+    await refreshSnapshotLive();
+    await analyzeSelectedProject(false);
+  } catch (error) {
+    if (state.selectedProject) {
+      elements.projectDescription.textContent = `${state.selectedProject.description} Showing the last saved snapshot while live refresh catches up.`;
+    }
+    if (!state.analysis) {
+      showDashboardError(`Live refresh is not available right now: ${error.message}`);
+    }
+  } finally {
+    elements.refreshButton.disabled = false;
+    elements.refreshButton.textContent = "Refresh live radar";
+  }
 });
 
 elements.toggleAdminButton.addEventListener("click", () => {

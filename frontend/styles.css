@@ -158,6 +158,7 @@ body {
   font-size: clamp(2.7rem, 5vw, 4.8rem);
   line-height: 0.95;
   margin-bottom: 0.9rem;
+  overflow-wrap: anywhere;
 }
 
 .eyebrow {
@@ -180,6 +181,7 @@ body {
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: stretch;
   gap: 0.75rem;
   margin-top: 1.5rem;
 }
@@ -194,6 +196,7 @@ body {
 }
 
 .select-shell {
+  flex: 1 1 18rem;
   min-width: 18rem;
 }
 
@@ -214,6 +217,9 @@ textarea {
 }
 
 .action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   border-radius: 999px;
   padding: 0.95rem 1.3rem;
@@ -310,6 +316,7 @@ textarea {
 .project-library-controls {
   display: flex;
   gap: 0.75rem;
+  width: 100%;
   min-width: min(36rem, 100%);
 }
 
@@ -815,6 +822,7 @@ textarea {
   .shell {
     width: min(100% - 1rem, 100%);
     padding-top: 1rem;
+    padding-bottom: 2.25rem;
   }
 
   .hero,
@@ -825,6 +833,33 @@ textarea {
   .research-layout .panel,
   .admin-panel {
     padding: 1.15rem;
+  }
+
+  .panel {
+    border-radius: 24px;
+  }
+
+  .hero {
+    gap: 1rem;
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(2.45rem, 14vw, 3.7rem);
+  }
+
+  .hero-text,
+  .brief-card p {
+    font-size: 1rem;
+  }
+
+  .brief-card h2 {
+    font-size: 1.55rem;
+  }
+
+  .panel-head,
+  .project-library-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .metric-grid {
@@ -846,19 +881,75 @@ textarea {
     flex-direction: column;
   }
 
+  .hero-actions > *,
+  .project-library-controls > *,
+  .explorer-controls > * {
+    width: 100%;
+  }
+
+  .select-shell {
+    min-width: 0;
+  }
+
   .brand-lockup,
   .project-card-footer {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .project-gallery,
+  .signal-grid,
+  .catalog-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
+  .shell {
+    width: min(100% - 0.75rem, 100%);
+  }
+
+  .hero,
+  .project-library,
+  .chart-panel,
+  .comparison-panel,
+  .signal-layout .panel,
+  .explorer-panel,
+  .research-layout .panel,
+  .admin-panel {
+    padding: 1rem;
+  }
+
+  .brand-mark {
+    width: 3.3rem;
+    height: 3.3rem;
+    border-radius: 1rem;
+  }
+
+  .brand-mark span {
+    font-size: 1.8rem;
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(1.85rem, 10.8vw, 2.55rem);
+    line-height: 1;
+  }
+
+  .brand-tag,
+  .eyebrow {
+    line-height: 1.5;
+  }
+
+  .brief-card h2 {
+    font-size: 1.35rem;
+  }
+
   .metric-grid {
     grid-template-columns: 1fr;
   }
 
   .timeline-chart {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: 14rem;
   }
 }

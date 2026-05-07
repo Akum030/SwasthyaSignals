@@ -35,7 +35,9 @@
         <div class="hero-actions">
           <label class="select-shell">
             <span>Project</span>
-            <select id="projectSelect"></select>
+            <select id="projectSelect">
+              <option value="" selected disabled>Loading project briefs...</option>
+            </select>
           </label>
           <button id="refreshButton" class="action-button primary">Refresh live radar</button>
           <button id="toggleAdminButton" class="action-button secondary">Project setup</button>
@@ -44,8 +46,8 @@
       <div class="hero-brief">
         <div class="brief-card">
           <span class="brief-label">Current mission</span>
-          <h2 id="projectName">Loading project…</h2>
-          <p id="projectDescription"></p>
+          <h2 id="projectName">Preparing dashboard...</h2>
+          <p id="projectDescription">Loading the latest saved snapshot so the portal opens quickly, even on mobile. You can choose a preset or search your own issue below.</p>
         </div>
         <div class="brief-meta">
           <div>
