@@ -358,7 +358,7 @@ def _build_focus_queries(keywords: list[str]) -> list[str]:
         family = family_map.get(keyword, (keyword,))
         is_symptom_family = any(term in symptom_terms for term in family)
         if is_symptom_family:
-            for term in family[:3]:
+            for term in _select_distinct_focus_family_terms(family)[:3]:
                 queries.append(f"india {term}")
 
     for keyword in cleaned_keywords[:4]:
@@ -392,6 +392,40 @@ def _collapse_overlapping_keywords(keywords: list[str]) -> list[str]:
     return collapsed
 
 
+def _select_distinct_focus_family_terms(family: tuple[str, ...]) -> list[str]:
+    """Collapse spacing and plural variants so focus probes stay diverse."""
+
+    if not family:
+        return []
+
+    selected = [family[0]]
+    grouped_terms: dict[str, str] = {}
+    grouped_order: list[str] = []
+
+    for term in family[1:]:
+        normalized = re.sub(r"[^a-z0-9]", "", term.lower())
+        if normalized.endswith("s") and not normalized.endswith("is") and len(normalized) > 4:
+            normalized = normalized[:-1]
+        if not normalized:
+            continue
+
+        existing = grouped_terms.get(normalized)
+        if existing is None:
+            grouped_terms[normalized] = term
+            grouped_order.append(normalized)
+            continue
+
+        existing_has_space = " " in existing
+        term_has_space = " " in term
+        if existing_has_space and not term_has_space:
+            grouped_terms[normalized] = term
+        elif existing_has_space == term_has_space and len(term) < len(existing):
+            grouped_terms[normalized] = term
+
+    selected.extend(grouped_terms[key] for key in grouped_order)
+    return selected
+
+
 def _item_relevance_score(item: dict[str, object], keywords: list[str]) -> int:
     """Rank project evidence so the most relevant live items surface first."""
 
@@ -417,6 +451,7 @@ def _passes_project_relevance(item: dict[str, object], keywords: list[str]) -> b
     body = str(item.get("body", "")).lower()
     merged = f"{title} {body}".strip()
     keyword_hits = _count_keyword_hits(merged, keywords)
+    title_keyword_hits = _count_keyword_hits(title, keywords)
     entities = item.get("entities", {}) or {}
     has_core_entities = bool(
         entities.get("drugs")
@@ -425,16 +460,20 @@ def _passes_project_relevance(item: dict[str, object], keywords: list[str]) -> b
     )
     has_health_context = has_core_entities or any(keyword in merged for keyword in HEALTH_CONTEXT_KEYWORDS)
     source_label = str(item.get("source_label", ""))
+    is_focused_google_news = item.get("source") == "google_news" and source_label.lower().startswith("google news rss:")
     focus_query_terms = _extract_focus_query_terms(source_label)
     if focus_query_terms:
         focus_query_hits = _count_keyword_hits(merged, focus_query_terms)
         required_focus_hits = 2 if len(focus_query_terms) >= 2 else 1
-        if focus_query_hits < required_focus_hits:
-            return False
-        if required_focus_hits >= 2:
-            title_hits = _count_keyword_hits(title, focus_query_terms)
-            if title_hits == 0 and not _has_sentence_level_focus_alignment(body, focus_query_terms, required_focus_hits):
+        if not (is_focused_google_news and title_keyword_hits >= 1):
+            if focus_query_hits < required_focus_hits:
                 return False
+            if required_focus_hits >= 2:
+                title_hits = _count_keyword_hits(title, focus_query_terms)
+                if title_hits == 0 and not _has_sentence_level_focus_alignment(body, focus_query_terms, required_focus_hits):
+                    return False
+    if is_focused_google_news and title_keyword_hits >= 1:
+        return True
     if item.get("source") == "reddit" and source_label.startswith("search:"):
         if not _reddit_item_is_health_adjacent(item) and keyword_hits < 3:
             return False

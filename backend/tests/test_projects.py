@@ -367,6 +367,86 @@ class ProjectViewTests(unittest.TestCase):
             "Doctors report more nosebleed complaints during the heatwave",
         )
 
+    def test_build_project_view_keeps_google_news_title_hit_without_entities(self) -> None:
+        """Focused Google News title hits should survive even when RSS blurbs are entity-light."""
+
+        snapshot = {
+            "generated_at": "2026-05-07T00:00:00+00:00",
+            "items": [],
+        }
+        project = {
+            "name": "Hair loss watch",
+            "description": "Focus on hair-loss chatter and treatment discussion.",
+            "keywords": ["hair loss"],
+            "sources": ["google_news"],
+            "latency_profile": "Realtime",
+        }
+        focus_items = [
+            {
+                "source": "google_news",
+                "source_label": "Google News RSS: india hair loss",
+                "title": "New Plant-Based Serum Shows Promise in Hair Loss Treatment",
+                "body": "A roundup of consumer interest and early treatment coverage.",
+                "url": "https://news.google.com/example/hair-loss-story",
+                "published_at": "2026-05-07T00:00:00+00:00",
+                "region": "India",
+                "official": False,
+                "language": "en",
+                "sentiment": "neutral",
+                "adr_like": False,
+                "entities": {},
+                "tags": [],
+            }
+        ]
+
+        analysis = build_project_view(snapshot, project, focus_items=focus_items)
+
+        self.assertEqual(analysis["metrics"]["item_count"], 1)
+        self.assertEqual(
+            analysis["items"][0]["title"],
+            "New Plant-Based Serum Shows Promise in Hair Loss Treatment",
+        )
+
+    def test_build_project_view_keeps_google_news_spacing_variant_for_symptom(self) -> None:
+        """Focused Google News items should allow common spacing variants like nose bleeds."""
+
+        snapshot = {
+            "generated_at": "2026-05-07T00:00:00+00:00",
+            "items": [],
+        }
+        project = {
+            "name": "Nose bleeding watch",
+            "description": "Focus on nose-bleeding chatter and public-health references.",
+            "keywords": ["nose bleeding"],
+            "sources": ["google_news"],
+            "latency_profile": "Realtime",
+        }
+        focus_items = [
+            {
+                "source": "google_news",
+                "source_label": "Google News RSS: india nosebleed",
+                "title": "Why your nose bleeds in summer and how to stop it",
+                "body": "A seasonal explainer covering common triggers and self-care advice.",
+                "url": "https://news.google.com/example/nose-bleeds-story",
+                "published_at": "2026-05-07T00:00:00+00:00",
+                "region": "India",
+                "official": False,
+                "language": "en",
+                "sentiment": "neutral",
+                "adr_like": False,
+                "entities": {},
+                "tags": [],
+            }
+        ]
+
+        analysis = build_project_view(snapshot, project, focus_items=focus_items)
+
+        self.assertEqual(analysis["metrics"]["item_count"], 1)
+        self.assertEqual(
+            analysis["items"][0]["title"],
+            "Why your nose bleeds in summer and how to stop it",
+        )
+
     def test_build_project_view_rejects_scattered_focus_query_mentions(self) -> None:
         """Focused search items should not pass when query terms only appear in unrelated sentences."""
 

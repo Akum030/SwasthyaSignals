@@ -87,7 +87,9 @@ ENTITY_LEXICONS: dict[str, tuple[str, ...]] = {
         "brain fog",
         "chest pain",
         "nose bleeding",
+        "nose bleeds",
         "nosebleed",
+        "nosebleeds",
         "epistaxis",
         "bloody nose",
     ),
@@ -138,7 +140,14 @@ PROJECT_SYNONYMS: dict[str, tuple[str, ...]] = {
     "pollution": ("pm2.5", "aqi", "smog", "air quality"),
     "child": ("children", "pediatric", "paediatric", "adolescent", "school"),
     "diabetes": ("t1d", "t2d", "type 1 diabetes", "type 2 diabetes"),
-    "nose bleeding": ("nosebleed", "epistaxis", "bloody nose", "nasal bleeding"),
+    "nose bleeding": (
+        "nose bleeds",
+        "nosebleed",
+        "nosebleeds",
+        "epistaxis",
+        "bloody nose",
+        "nasal bleeding",
+    ),
 }
 
 
