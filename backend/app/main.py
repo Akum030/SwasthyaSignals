@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +22,9 @@ from app.storage import load_snapshot, save_snapshot
 CONFIG = AppConfig()
 STARTED_AT = datetime.now(tz=timezone.utc).isoformat()
 SNAPSHOT_LOCK = Lock()
+REFRESH_STATE_LOCK = Lock()
 SNAPSHOT_CACHE: dict[str, object] | None = load_snapshot()
+SNAPSHOT_REFRESH_IN_PROGRESS = False
 
 
 def create_app() -> FastAPI:
@@ -80,8 +82,10 @@ def create_app() -> FastAPI:
         """Build a project-scoped dashboard from the latest live snapshot."""
 
         snapshot = SNAPSHOT_CACHE
-        if refresh or snapshot is None or _should_refresh_snapshot(snapshot, project.latency_profile):
+        if refresh or snapshot is None:
             snapshot = _refresh_snapshot()
+        elif _should_refresh_snapshot(snapshot, project.latency_profile):
+            _schedule_snapshot_refresh()
         return build_project_view(snapshot, project.model_dump())
 
     @app.get("/api/v1/research")
@@ -105,6 +109,31 @@ def _refresh_snapshot() -> dict[str, object]:
         SNAPSHOT_CACHE = collect_snapshot(CONFIG)
         save_snapshot(SNAPSHOT_CACHE)
         return SNAPSHOT_CACHE
+
+
+def _schedule_snapshot_refresh() -> None:
+    """Refresh stale snapshots in the background so searches do not block on slow sources."""
+
+    global SNAPSHOT_REFRESH_IN_PROGRESS
+
+    with REFRESH_STATE_LOCK:
+        if SNAPSHOT_REFRESH_IN_PROGRESS:
+            return
+        SNAPSHOT_REFRESH_IN_PROGRESS = True
+
+    Thread(target=_refresh_snapshot_in_background, daemon=True).start()
+
+
+def _refresh_snapshot_in_background() -> None:
+    """Execute a background snapshot refresh and release the in-progress guard."""
+
+    global SNAPSHOT_REFRESH_IN_PROGRESS
+
+    try:
+        _refresh_snapshot()
+    finally:
+        with REFRESH_STATE_LOCK:
+            SNAPSHOT_REFRESH_IN_PROGRESS = False
 
 
 def _should_refresh_snapshot(snapshot: dict[str, object], latency_profile: str) -> bool:
