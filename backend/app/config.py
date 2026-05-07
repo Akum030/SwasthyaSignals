@@ -86,6 +86,10 @@ ENTITY_LEXICONS: dict[str, tuple[str, ...]] = {
         "anxiety",
         "brain fog",
         "chest pain",
+        "hair loss",
+        "hair fall",
+        "hair thinning",
+        "alopecia",
         "nose bleeding",
         "nose bleeds",
         "nosebleed",
@@ -140,6 +144,7 @@ PROJECT_SYNONYMS: dict[str, tuple[str, ...]] = {
     "pollution": ("pm2.5", "aqi", "smog", "air quality"),
     "child": ("children", "pediatric", "paediatric", "adolescent", "school"),
     "diabetes": ("t1d", "t2d", "type 1 diabetes", "type 2 diabetes"),
+    "hair loss": ("hair fall", "hair thinning", "alopecia"),
     "nose bleeding": (
         "nose bleeds",
         "nosebleed",

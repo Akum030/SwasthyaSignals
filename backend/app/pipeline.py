@@ -15,6 +15,7 @@ from app.config import (
     NEGATIVE_CUES,
     OFFICIAL_KEYWORDS,
     POSITIVE_CUES,
+    PROJECT_SYNONYMS,
 )
 from app.models import ContentItem, SignalCard
 
@@ -28,6 +29,45 @@ MARKDOWN_LIST_PATTERN = re.compile(r"(?m)^\s{0,3}(?:[-*+]|\d+\.)\s+")
 MARKDOWN_RULE_PATTERN = re.compile(r"(?m)^\s*[-*_]{3,}\s*$")
 MARKDOWN_TABLE_DIVIDER_PATTERN = re.compile(r"(?m)^\s*\|?(?:\s*:?-+:?\s*\|)+\s*$")
 MARKDOWN_FORMATTING_PATTERN = re.compile(r"\*\*|__|~~|`+")
+FOCUS_SIGNAL_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "effect",
+    "effects",
+    "for",
+    "in",
+    "india",
+    "india-first",
+    "of",
+    "on",
+    "or",
+    "side",
+    "the",
+    "vs",
+    "with",
+    "world",
+}
+
+
+def _build_entity_canonical_map() -> dict[str, str]:
+    """Map known alias variants back to the canonical term used in summaries."""
+
+    mapping: dict[str, str] = {}
+    for phrases in ENTITY_LEXICONS.values():
+        for phrase in phrases:
+            mapping[phrase] = phrase
+
+    for canonical, synonyms in PROJECT_SYNONYMS.items():
+        if canonical not in mapping:
+            continue
+        for synonym in synonyms:
+            if synonym in mapping:
+                mapping[synonym] = canonical
+    return mapping
+
+
+ENTITY_CANONICAL_MAP = _build_entity_canonical_map()
 ENTITY_PATTERNS: dict[str, list[tuple[str, re.Pattern[str]]]] = {
     category: [
         (
@@ -90,7 +130,11 @@ def extract_entities(text: str) -> dict[str, list[str]]:
     lowered = text.lower()
     entities: dict[str, list[str]] = {}
     for category, phrase_patterns in ENTITY_PATTERNS.items():
-        matches = [phrase for phrase, pattern in phrase_patterns if pattern.search(lowered)]
+        matches = [
+            ENTITY_CANONICAL_MAP.get(phrase, phrase)
+            for phrase, pattern in phrase_patterns
+            if pattern.search(lowered)
+        ]
         if matches:
             entities[category] = sorted(set(matches))
     return entities
@@ -202,14 +246,22 @@ def build_signals(items: list[ContentItem]) -> list[SignalCard]:
         symptoms = item.entities.get("symptoms", [])
         lifestyle = item.entities.get("lifestyle", [])
 
-        primary = drugs[:1] or conditions[:1] or lifestyle[:1]
+        primary = drugs[:1] or conditions[:1] or symptoms[:1] or lifestyle[:1]
         secondary = symptoms[:1] or conditions[1:2] or lifestyle[1:2]
         if primary:
-            key = (primary[0], secondary[0] if secondary else "general")
+            if primary[0] in symptoms:
+                secondary = conditions[:1] or lifestyle[:1]
+            key = (
+                _canonicalize_signal_term(primary[0]),
+                _canonicalize_signal_term(secondary[0]) if secondary else "general",
+            )
         elif item.official:
             key = (item.title.lower()[:40], "official")
         else:
-            continue
+            fallback_key = _fallback_signal_key(item)
+            if fallback_key is None:
+                continue
+            key = fallback_key
         grouped[key].append(item)
 
     signals: list[SignalCard] = []
@@ -268,6 +320,44 @@ def build_signals(items: list[ContentItem]) -> list[SignalCard]:
 
     signals.sort(key=lambda card: (-card.confidence, -card.evidence_count, card.title))
     return signals[:8]
+
+
+def _canonicalize_signal_term(term: str) -> str:
+    """Normalize a signal term so alias variants collapse into one card."""
+
+    cleaned = " ".join(term.lower().strip().split())
+    return ENTITY_CANONICAL_MAP.get(cleaned, cleaned)
+
+
+def _fallback_signal_key(item: ContentItem) -> tuple[str, str] | None:
+    """Build a signal key from a focused search label when entity extraction is too sparse."""
+
+    phrase = _extract_focus_signal_phrase(item.source_label)
+    if not phrase:
+        return None
+    return (_canonicalize_signal_term(phrase), "general")
+
+
+def _extract_focus_signal_phrase(source_label: str) -> str | None:
+    """Recover the meaningful part of a focused search label for signal fallback."""
+
+    lowered = source_label.lower().strip()
+    if lowered.startswith("search:"):
+        raw_query = lowered.split("search:", maxsplit=1)[1]
+    elif lowered.startswith("google news rss:"):
+        raw_query = lowered.split(":", maxsplit=1)[1]
+    else:
+        return None
+
+    terms: list[str] = []
+    for part in re.split(r"\s+", raw_query):
+        cleaned = re.sub(r"[^a-z0-9+-]", "", part)
+        if len(cleaned) < 3 or cleaned in FOCUS_SIGNAL_STOPWORDS:
+            continue
+        terms.append(cleaned)
+    if not terms:
+        return None
+    return " ".join(terms[:4])
 
 
 def summarize_topics(items: list[ContentItem]) -> list[dict[str, object]]:
