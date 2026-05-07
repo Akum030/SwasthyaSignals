@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SwasthyaSignals</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-glow page-glow-left"></div>
+  <div class="page-glow page-glow-right"></div>
+  <div class="page-grid"></div>
+
+  <main class="shell">
+    <header class="hero panel reveal">
+      <div class="hero-copy">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">
+            <span>&gt;</span>
+          </div>
+          <div>
+            <p class="eyebrow">India-first social health early warning platform</p>
+            <p class="brand-tag">Signal &gt; noise. Real sources. Explainable alerts.</p>
+          </div>
+        </div>
+        <h1>SwasthyaSignals</h1>
+        <p class="hero-text">
+          A live command center that fuses patient chatter, lifestyle risk cues,
+          and Indian official references into explainable early-warning signals.
+        </p>
+        <div class="hero-actions">
+          <label class="select-shell">
+            <span>Project</span>
+            <select id="projectSelect"></select>
+          </label>
+          <button id="refreshButton" class="action-button primary">Refresh live radar</button>
+          <button id="toggleAdminButton" class="action-button secondary">Project setup</button>
+        </div>
+      </div>
+      <div class="hero-brief">
+        <div class="brief-card">
+          <span class="brief-label">Current mission</span>
+          <h2 id="projectName">Loading project…</h2>
+          <p id="projectDescription"></p>
+        </div>
+        <div class="brief-meta">
+          <div>
+            <span>Last sweep</span>
+            <strong id="lastSweep">Awaiting refresh</strong>
+          </div>
+          <div>
+            <span>Latency profile</span>
+            <strong id="latencyProfile">Realtime</strong>
+          </div>
+          <div>
+            <span>Signal posture</span>
+            <strong>Evidence-first</strong>
+          </div>
+          <div>
+            <span>Source mode</span>
+            <strong>Authentic public data</strong>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section id="laneStrip" class="lane-strip reveal"></section>
+
+    <section class="project-library panel reveal">
+      <div class="panel-head project-library-head">
+        <div>
+          <p class="eyebrow">Project library</p>
+          <h2>Start with a proven brief or type your own issue</h2>
+        </div>
+        <div class="project-library-controls">
+          <input id="projectSearchInput" type="search" placeholder="Search presets or type your own symptom, drug, or issue">
+          <button id="launchCustomProjectButton" class="action-button secondary" type="button">Run typed issue</button>
+        </div>
+      </div>
+      <div id="projectGallery" class="project-gallery"></div>
+    </section>
+
+    <section id="adminPanel" class="admin-panel panel reveal hidden">
+      <div class="panel-head compact">
+        <div>
+          <p class="eyebrow">Admin / project setup</p>
+          <h2>Spin up a monitoring brief</h2>
+        </div>
+      </div>
+      <form id="projectForm" class="project-form">
+        <label>
+          Project name
+          <input id="projectNameInput" name="name" type="text" placeholder="Diabetes drugs - India vs World" required>
+        </label>
+        <label>
+          Project description
+          <textarea id="projectDescriptionInput" name="description" rows="3" placeholder="What exactly should this radar watch?"></textarea>
+        </label>
+        <label>
+          Keywords
+          <input id="projectKeywordsInput" name="keywords" type="text" placeholder="diabetes, insulin, metformin, semaglutide">
+        </label>
+        <label>
+          Latency profile
+          <select id="projectLatencyInput" name="latency_profile">
+            <option value="Realtime">Realtime</option>
+            <option value="Daily">Daily</option>
+            <option value="Weekly">Weekly</option>
+          </select>
+        </label>
+        <fieldset>
+          <legend>Sources</legend>
+          <div id="sourceCheckboxes" class="source-checkboxes"></div>
+        </fieldset>
+        <label class="checkbox-row">
+          <input id="officialOnlyInput" name="include_official_only" type="checkbox">
+          Official-only mode
+        </label>
+        <div class="form-actions">
+          <button class="action-button primary" type="submit">Run this project</button>
+          <button class="action-button secondary" type="button" id="loadDefaultProjectButton">Load default brief</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="metric-grid reveal" id="metricGrid"></section>
+
+    <section class="board-grid reveal">
+      <article class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Trajectory</p>
+            <h2>Volume over time</h2>
+          </div>
+          <p class="panel-note">Live counts from the current project window</p>
+        </div>
+        <div id="timelineChart" class="timeline-chart"></div>
+      </article>
+      <article class="panel comparison-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">India vs world</p>
+            <h2>Signal split</h2>
+          </div>
+        </div>
+        <div id="compareBars" class="compare-bars"></div>
+        <div class="split-grid">
+          <div>
+            <h3>Source health</h3>
+            <div id="sourceStatusList" class="status-list"></div>
+          </div>
+          <div>
+            <h3>Regions</h3>
+            <div id="regionList" class="mini-list"></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="signal-layout reveal">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Signal board</p>
+            <h2>What needs attention now</h2>
+          </div>
+          <p class="panel-note">Click any signal for explainability</p>
+        </div>
+        <div id="signalGrid" class="signal-grid"></div>
+      </article>
+      <aside class="panel explain-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Explainability</p>
+            <h2 id="explainTitle">Select a signal</h2>
+          </div>
+        </div>
+        <p id="explainSummary" class="explain-summary">
+          Evidence details, source overlap, and official references will appear here.
+        </p>
+        <div id="explainMeta" class="explain-meta"></div>
+        <div>
+          <h3>Evidence links</h3>
+          <div id="explainLinks" class="link-list"></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="explorer-panel panel reveal">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Explore</p>
+          <h2>Evidence explorer</h2>
+        </div>
+        <div class="explorer-controls">
+          <input id="searchInput" type="search" placeholder="Search drug, symptom, condition, or phrase">
+          <select id="sourceFilter">
+            <option value="all">All sources</option>
+          </select>
+        </div>
+      </div>
+      <div id="itemList" class="item-list"></div>
+    </section>
+
+    <section class="research-layout reveal">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Source strategy</p>
+            <h2>Why this works on real data</h2>
+          </div>
+        </div>
+        <div id="sourceCatalog" class="catalog-grid"></div>
+      </article>
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Out-of-box edge</p>
+            <h2>Differentiators most teams miss</h2>
+          </div>
+        </div>
+        <div id="differentiatorList" class="differentiator-list"></div>
+        <div class="strategy-box">
+          <span class="eyebrow">MVP doctrine</span>
+          <p id="strategyRule"></p>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
