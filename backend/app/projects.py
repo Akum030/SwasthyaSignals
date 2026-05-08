@@ -456,7 +456,7 @@ def _item_relevance_score(item: dict[str, object], keywords: list[str]) -> int:
     if item.get("adr_like"):
         score += 5
     source_label = str(item.get("source_label", ""))
-    if source_label.startswith("search:") or source_label.startswith("Google News RSS:"):
+    if source_label.startswith("search:") or source_label.startswith("Google News"):
         score += 4
     return score
 
@@ -480,7 +480,7 @@ def _passes_project_relevance(item: dict[str, object], keywords: list[str]) -> b
     )
     has_health_context = has_core_entities or any(keyword in merged for keyword in HEALTH_CONTEXT_KEYWORDS)
     source_label = str(item.get("source_label", ""))
-    is_focused_google_news = item.get("source") == "google_news" and source_label.lower().startswith("google news rss:")
+    is_focused_google_news = item.get("source") == "google_news" and source_label.lower().startswith("google news")
     focus_query_terms = _extract_focus_query_terms(source_label)
     if focus_query_terms:
         focus_query_hits = _count_keyword_hits(merged, focus_query_terms)
@@ -553,10 +553,12 @@ def _extract_focus_query_terms(source_label: str) -> list[str]:
     lowered = source_label.lower().strip()
     if lowered.startswith("search:"):
         raw_query = lowered.split("search:", maxsplit=1)[1]
-    elif lowered.startswith("google news rss:"):
+    elif lowered.startswith("google news"):
         raw_query = lowered.split(":", maxsplit=1)[1]
     else:
         return []
+
+    raw_query = raw_query.split("·", maxsplit=1)[0]
 
     terms: list[str] = []
     for part in re.split(r"\s+", raw_query):

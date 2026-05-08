@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from app.config import AppConfig
 from app.models import ContentItem
-from app.sources.google_news import GoogleNewsSource
+from app.sources.google_news import GoogleNewsSource, _parse_search_result_items
 from app.sources.telegram import _body_to_title, _parse_channel_messages
 from app.sources.youtube import _enrich_watch_page_items, _parse_feed_items, _parse_search_results
 
@@ -103,28 +103,57 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(items[0].url, "https://www.youtube.com/watch?v=abc123")
         self.assertIn("blood sugar", items[0].body)
 
-    @patch("app.sources.google_news.fetch_text")
-    def test_google_news_fetch_uses_publisher_in_labels_and_thin_body_fallback(self, fetch_text_mock) -> None:
-        """Google News items should expose the publisher when RSS blurbs are only title plus source."""
+    def test_parse_google_news_search_results_uses_result_card_metadata(self) -> None:
+        """Google News HTML cards should expose publisher, date, and author details."""
 
-        fetch_text_mock.return_value = """<?xml version='1.0' encoding='UTF-8'?>
-        <rss><channel>
-          <item>
-            <title>Diabetes Drug Metformin Could Reduce Insulin Needs</title>
-            <link>https://news.google.com/rss/articles/test-article</link>
-            <description><![CDATA[
-              <a href="https://news.google.com/rss/articles/test-article">Diabetes Drug Metformin Could Reduce Insulin Needs</a>&nbsp;&nbsp;<font color="#6f6f6f">NDTV</font>
-            ]]></description>
-            <source url="https://www.ndtv.com">NDTV</source>
-            <pubDate>Fri, 08 May 2026 10:00:00 GMT</pubDate>
-          </item>
-        </channel></rss>"""
+        html = """
+        <html><body>
+          <a class="JtKRv"
+             href="./read/CBMiTest?hl=en-IN&amp;gl=IN&amp;ceid=IN%3Aen"
+             aria-label="Diabetes Drug Metformin Could Reduce Insulin Needs For People With Type 1 Diabetes: Study - NDTV - 17 Apr - By Debosmita Ghosh">
+             Diabetes Drug Metformin Could Reduce Insulin Needs For People With Type 1 Diabetes: Study
+          </a>
+        </body></html>
+        """
+
+        items = _parse_search_result_items(html, "diabetes", set(), limit=3)
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].source_label, "Google News Search: diabetes · NDTV")
+        self.assertEqual(
+            items[0].body,
+          "Reported by NDTV via Google News on 17 Apr. By Debosmita Ghosh.",
+        )
+        self.assertEqual(
+            items[0].url,
+            "https://news.google.com/read/CBMiTest?hl=en-IN&gl=IN&ceid=IN%3Aen",
+        )
+
+    @patch("app.sources.google_news.fetch_text")
+    def test_google_news_fetch_falls_back_to_rss_when_html_has_no_cards(self, fetch_text_mock) -> None:
+        """Google News should keep the RSS fallback when search HTML yields nothing usable."""
+
+        fetch_text_mock.side_effect = [
+            "<html><body>No result cards here.</body></html>",
+            """<?xml version='1.0' encoding='UTF-8'?>
+            <rss><channel>
+              <item>
+                <title>Diabetes Drug Metformin Could Reduce Insulin Needs</title>
+                <link>https://news.google.com/rss/articles/test-article</link>
+                <description><![CDATA[
+                  <a href="https://news.google.com/rss/articles/test-article">Diabetes Drug Metformin Could Reduce Insulin Needs</a>&nbsp;&nbsp;<font color="#6f6f6f">NDTV</font>
+                ]]></description>
+                <source url="https://www.ndtv.com">NDTV</source>
+                <pubDate>Fri, 08 May 2026 10:00:00 GMT</pubDate>
+              </item>
+            </channel></rss>""",
+        ]
         config = replace(AppConfig(), news_search_queries=("diabetes",), max_items_per_source=2)
 
         items = GoogleNewsSource().fetch(config)
 
         self.assertEqual(len(items), 1)
-        self.assertEqual(items[0].source_label, "Google News RSS: diabetes · NDTV")
+        self.assertEqual(items[0].source_label, "Google News: diabetes · NDTV")
         self.assertEqual(
             items[0].body,
             "Diabetes Drug Metformin Could Reduce Insulin Needs Reported by NDTV via Google News.",
