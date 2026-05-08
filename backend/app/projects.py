@@ -9,7 +9,10 @@ import re
 from app.config import AppConfig, ENTITY_LEXICONS, HEALTH_CONTEXT_KEYWORDS, PROJECT_SYNONYMS
 from app.pipeline import build_signals, enrich_item, summarize_topics
 from app.sources.base import SourceError
+from app.sources.cdsco import CdscoSource
+from app.sources.data_gov import DataGovSource
 from app.sources.google_news import GoogleNewsSource
+from app.sources.nhm import NhmSource
 from app.sources.reddit import RedditSource
 from app.sources.telegram import TelegramSource
 from app.sources.youtube import YouTubeSource
@@ -213,6 +216,7 @@ def build_project_view(
     seen_urls: set[str] = set()
     for item in snapshot.get("items", []):
         merged = f"{item['title']} {item['body']}".lower()
+        keyword_hits = _count_keyword_hits(merged, expanded_keywords)
         if allowed_sources and item["source"] not in allowed_sources:
             continue
         official_matches_brief = _official_context_matches_brief(merged, expanded_keywords)
@@ -220,7 +224,7 @@ def build_project_view(
             official_context.append(item)
         if include_official_only and not item["official"]:
             continue
-        if expanded_keywords and _count_keyword_hits(merged, expanded_keywords) == 0:
+        if expanded_keywords and keyword_hits == 0 and not (item["official"] and official_matches_brief):
             continue
         if expanded_keywords and not _passes_project_relevance(item, expanded_keywords):
             continue
@@ -232,11 +236,15 @@ def build_project_view(
     live_focus_items = focus_items if focus_items is not None else _collect_project_focus_items(project, allowed_sources)
     for item in live_focus_items:
         merged = f"{item['title']} {item['body']}".lower()
+        keyword_hits = _count_keyword_hits(merged, expanded_keywords)
+        official_matches_brief = _official_context_matches_brief(merged, expanded_keywords)
         if allowed_sources and item["source"] not in allowed_sources:
             continue
+        if item["official"] and official_matches_brief and any(keyword in merged for keyword in OFFICIAL_CONTEXT_KEYWORDS):
+            official_context.append(item)
         if include_official_only and not item["official"]:
             continue
-        if expanded_keywords and _count_keyword_hits(merged, expanded_keywords) == 0:
+        if expanded_keywords and keyword_hits == 0 and not (item["official"] and official_matches_brief):
             continue
         if expanded_keywords and not _passes_project_relevance(item, expanded_keywords):
             continue
@@ -318,6 +326,7 @@ def _collect_project_focus_items(
         reddit_search_queries=tuple(queries),
         news_search_queries=tuple(queries),
     )
+    official_config = replace(focused_config, max_items_per_source=4)
 
     items: list[dict[str, object]] = []
     source_specs = [
@@ -325,6 +334,9 @@ def _collect_project_focus_items(
         ("google_news", lambda: GoogleNewsSource().fetch(focused_config)),
         ("youtube", lambda: YouTubeSource().search_queries(tuple(queries), focused_config)),
         ("telegram", lambda: TelegramSource().fetch(focused_config)),
+        ("cdsco", lambda: CdscoSource().fetch(official_config)),
+        ("nhm", lambda: NhmSource().fetch(official_config)),
+        ("data_gov", lambda: DataGovSource().fetch(official_config)),
     ]
     for source_name, fetch_items in source_specs:
         if allowed_sources and source_name not in allowed_sources:
@@ -439,6 +451,8 @@ def _item_relevance_score(item: dict[str, object], keywords: list[str]) -> int:
     score = _count_keyword_hits(merged, keywords) * 10
     if item.get("official"):
         score += 8
+        if _official_context_matches_brief(merged, keywords):
+            score += 12
     if item.get("adr_like"):
         score += 5
     source_label = str(item.get("source_label", ""))

@@ -105,6 +105,66 @@ class ProjectViewTests(unittest.TestCase):
         youtube_search.assert_called_once()
         telegram_fetch.assert_called_once()
 
+    @patch("app.projects.CdscoSource.fetch")
+    @patch("app.projects.DataGovSource.fetch")
+    @patch("app.projects.NhmSource.fetch")
+    def test_collect_project_focus_items_refreshes_official_sources(
+        self,
+        nhm_fetch,
+        data_gov_fetch,
+        cdsco_fetch,
+    ) -> None:
+        """Focused project refreshes should include live official evidence, not only social/explainer sources."""
+
+        cdsco_fetch.return_value = [
+            ContentItem(
+                source="cdsco",
+                source_label="CDSCO",
+                title="Safety alert on anti-diabetic products",
+                body="CDSCO flags quality and safety observations for diabetes-related products.",
+                url="https://cdsco.gov.in/example/diabetes-alert.pdf",
+                published_at=None,
+                official=True,
+            )
+        ]
+        nhm_fetch.return_value = [
+            ContentItem(
+                source="nhm",
+                source_label="National Health Mission",
+                title="NP-NCD diabetes training module",
+                body="National programme guidance for diabetes screening and non-communicable disease management.",
+                url="https://nhm.gov.in/example/ncd-diabetes.pdf",
+                published_at=None,
+                official=True,
+            )
+        ]
+        data_gov_fetch.return_value = [
+            ContentItem(
+                source="data_gov",
+                source_label="data.gov.in",
+                title="State-wise diabetes screening dataset",
+                body="Dataset covering diabetes screening baselines across Indian states.",
+                url="https://data.gov.in/example/diabetes-dataset",
+                published_at="2026-05-08T00:00:00+00:00",
+                official=True,
+            )
+        ]
+
+        project = {
+            "name": "Diabetes official mesh",
+            "description": "Bring live Indian official context into diabetes analysis.",
+            "keywords": ["diabetes"],
+            "sources": ["cdsco", "nhm", "data_gov"],
+            "latency_profile": "Realtime",
+        }
+
+        items = _collect_project_focus_items(project, {"cdsco", "nhm", "data_gov"})
+
+        self.assertEqual({item["source"] for item in items}, {"cdsco", "nhm", "data_gov"})
+        cdsco_fetch.assert_called_once()
+        nhm_fetch.assert_called_once()
+        data_gov_fetch.assert_called_once()
+
     def test_expand_project_keywords_adds_brand_aliases(self) -> None:
         """Canonical terms should expand to the same family as common brand-name aliases."""
 
@@ -245,6 +305,44 @@ class ProjectViewTests(unittest.TestCase):
 
         self.assertEqual(analysis["metrics"]["item_count"], 0)
         self.assertEqual(analysis["items"], [])
+
+    def test_build_project_view_keeps_live_official_context_without_literal_keyword_hit(self) -> None:
+        """Live official refreshes should survive filtering when they match through official programme bridge terms."""
+
+        snapshot = {
+            "generated_at": "2026-05-07T00:00:00+00:00",
+            "items": [],
+        }
+        project = {
+            "name": "Diabetes official mesh",
+            "description": "Bring live Indian official context into diabetes analysis.",
+            "keywords": ["diabetes"],
+            "sources": ["nhm"],
+            "latency_profile": "Realtime",
+        }
+        focus_items = [
+            {
+                "source": "nhm",
+                "source_label": "National Health Mission",
+                "title": "Training Module for Programme Managers under NP-NCD",
+                "body": "National programme for non-communicable disease management and blood sugar screening guidance.",
+                "url": "https://nhm.gov.in/example/ncd-training.pdf",
+                "published_at": None,
+                "region": "India",
+                "official": True,
+                "language": "en",
+                "sentiment": "neutral",
+                "adr_like": False,
+                "entities": {},
+                "tags": ["official"],
+            }
+        ]
+
+        analysis = build_project_view(snapshot, project, focus_items=focus_items)
+
+        self.assertEqual(analysis["metrics"]["official_count"], 1)
+        self.assertEqual(analysis["metrics"]["item_count"], 1)
+        self.assertEqual(analysis["items"][0]["source"], "nhm")
 
     def test_build_project_view_exposes_focus_queries(self) -> None:
         """The frontend should be able to explain what live searches were executed."""
