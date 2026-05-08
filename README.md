@@ -40,6 +40,7 @@ Open:
 - API health: http://127.0.0.1:8011/health
 - Live snapshot: http://127.0.0.1:8011/api/v1/snapshot?refresh=true
 - Frontend: http://127.0.0.1:8011/app/
+- Stable demo URL: http://127.0.0.1:8011/demo
 
 ## Server Deployment
 
@@ -70,10 +71,13 @@ This compose file attaches to the existing `root_default` Docker network and exp
 ## API Surface
 
 - `GET /health`: service health payload
+- `GET /demo`: stable redirect URL for the hosted walkthrough or pitch video
 - `GET /api/v1/snapshot`: current live multi-source snapshot
 - `GET /api/v1/projects/defaults`: built-in project briefs
 - `POST /api/v1/projects/analyze`: project-scoped filtered dashboard
 - `GET /api/v1/research`: source strategy and differentiators for the UI
+
+The deployed compose file now points `SWASTHYA_DEMO_URL` at the uploaded walkthrough video, so `https://swasthyasignals.aidhunik.com/demo` stays stable even if the direct YouTube share link changes later.
 
 ## Folder Map
 

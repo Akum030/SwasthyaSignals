@@ -70,6 +70,62 @@ function hostLabel(value) {
   try { return new URL(String(value), location.origin).hostname.replace(/^www\./, ""); }
   catch { return "source"; }
 }
+function sourceLabelSuffix(value) {
+  const label = cleanText(value);
+  if (!label) return "";
+  return label.includes(":") ? label.split(":").pop().trim() : label;
+}
+function lookupSourceCatalogEntry(source) {
+  return (state.research?.source_catalog || []).find(entry => entry.name === source) || null;
+}
+function lookupResourceLink(source, label) {
+  const entry = lookupSourceCatalogEntry(source);
+  if (!entry || !Array.isArray(entry.resource_links)) return null;
+  const needle = cleanText(label).toLowerCase();
+  return entry.resource_links.find(link => cleanText(link.label).toLowerCase() === needle) || null;
+}
+function googleNewsPublisher(item) {
+  if (item?.source !== "google_news") return "";
+  const title = cleanText(item.title);
+  if (title.includes(" - ")) {
+    const publisher = title.split(" - ").pop().trim();
+    if (publisher) return publisher;
+  }
+  return "";
+}
+function buildSourceRoot(item) {
+  if (!item) return { url: "#", label: "Open source root" };
+  const source = item.source;
+  const label = item.source_label || "";
+  if (source === "reddit") {
+    if (label.toLowerCase().startsWith("r/")) {
+      return { url: `https://www.reddit.com/${label}`, label: `Browse ${label}` };
+    }
+    const query = label.replace(/^search:/i, "").trim();
+    return {
+      url: query ? `https://www.reddit.com/search/?q=${encodeURIComponent(query)}` : "https://www.reddit.com",
+      label: query ? "Browse Reddit search" : "Browse Reddit",
+    };
+  }
+  if (source === "google_news") {
+    const query = sourceLabelSuffix(label);
+    return {
+      url: query ? `https://news.google.com/search?q=${encodeURIComponent(query)}&hl=en-IN&gl=IN` : "https://news.google.com",
+      label: query ? "Browse Google News query" : "Browse Google News",
+    };
+  }
+  if (source === "youtube" || source === "telegram") {
+    const match = lookupResourceLink(source, sourceLabelSuffix(label));
+    if (match?.url) {
+      return { url: match.url, label: `Browse ${match.label}` };
+    }
+  }
+  const entry = lookupSourceCatalogEntry(source);
+  if (entry?.resource_url) {
+    return { url: entry.resource_url, label: `Browse ${formatSourceLabel(source)}` };
+  }
+  return { url: safeUrl(item.url), label: "Open source root" };
+}
 function formatTime(value) {
   if (!value) return "";
   const parsed = new Date(value);
@@ -105,13 +161,12 @@ function primaryActionLabel(item) {
   if (item?.official) return "Open official source";
   if (item?.source === "reddit") return "Open Reddit thread";
   if (item?.source === "youtube") return "Open video source";
-  if (item?.source === "google_news") return "Open article or listing";
+  if (item?.source === "google_news") return googleNewsPublisher(item) ? `Open ${googleNewsPublisher(item)} coverage` : "Open article or listing";
   if (item?.source === "telegram") return "Open Telegram post";
   return "Open original evidence";
 }
 function secondaryActionLabel(item) {
-  if (!item?.source) return "Open source root";
-  return `Browse ${formatSourceLabel(item.source)}`;
+  return buildSourceRoot(item).label;
 }
 function attachMotionCards(root = document) {
   if (!window.matchMedia("(hover: hover)").matches) return;
@@ -332,18 +387,6 @@ function renderSignalDetail(sig) {
 }
 
 /* ---- Render: evidence ---- */
-function buildSourceUrl(item) {
-  if (!item) return "#";
-  const s=item.source, lbl=item.source_label||"";
-  if (s==="reddit") { if (lbl.toLowerCase().startsWith("r/")) return "https://www.reddit.com/"+lbl; const q=lbl.replace(/^search:/i,"").trim(); return q?"https://www.reddit.com/search/?q="+encodeURIComponent(q):"https://www.reddit.com"; }
-  if (s==="google_news") { const q=lbl.split(":").pop().trim(); return q?"https://news.google.com/search?q="+encodeURIComponent(q)+"&hl=en-IN&gl=IN":"https://news.google.com"; }
-  if (s==="youtube") return "https://www.youtube.com";
-  if (s==="telegram") return "https://t.me";
-  if (s==="cdsco") return "https://cdsco.gov.in";
-  if (s==="nhm") return "https://nhm.gov.in";
-  if (s==="data_gov") return "https://data.gov.in";
-  return safeUrl(item.url);
-}
 function populateSourceFilter(items) {
   const sources = [...new Set(items.map(i=>i.source).filter(Boolean))];
   const cur = el.evidenceSource.value;
@@ -369,15 +412,23 @@ function renderEvidence(items) {
   }
   el.evidenceList.innerHTML = filtered.map((item,idx) => {
     const srcCls = sourceBadgeClass(item.source);
-    const srcLbl = formatSourceLabel(item.source) + (item.source_label?(" · "+item.source_label.split(":").pop().trim()):"");
+    const sourceSuffix = sourceLabelSuffix(item.source_label);
+    const publisher = googleNewsPublisher(item);
+    const srcLbl = formatSourceLabel(item.source)
+      + (sourceSuffix ? (" · " + sourceSuffix) : "")
+      + (publisher && !sourceSuffix.toLowerCase().includes(publisher.toLowerCase()) ? (" · " + publisher) : "");
     const title = cleanText(item.title) || cleanText(item.body).slice(0,80);
     const body = cleanText(item.body||""); const snippet = body.length>320?body.slice(0,320)+"…":body;
-    const url = safeUrl(item.url); const rootUrl = buildSourceUrl(item);
+    const url = safeUrl(item.url); const root = buildSourceRoot(item); const rootUrl = safeUrl(root.url);
     const tags = [item.region,item.sentiment].filter(Boolean);
     const entities = flattenEntities(item.entities);
     const timeLabel = formatTime(item.published_at);
     const kind = evidenceKind(item);
-    const host = hostLabel(url !== "#" ? url : rootUrl);
+    const host = item.source === "google_news"
+      ? (publisher || hostLabel(rootUrl !== "#" ? rootUrl : url))
+      : ((item.source === "youtube" || item.source === "telegram")
+        ? (sourceSuffix || hostLabel(rootUrl !== "#" ? rootUrl : url))
+        : hostLabel(url !== "#" ? url : rootUrl));
     const primaryLabel = primaryActionLabel(item);
     return `<article class="item-card${item.official ? " official" : ""}" style="animation-delay:${Math.min(idx*.04,.4)}s" data-tilt-card>
       <div class="ic-top">

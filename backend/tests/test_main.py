@@ -10,6 +10,9 @@ from app.main import app
 from app.schemas import ProjectRequest
 
 
+DEMO_URL = "https://youtu.be/jnGYBJNrnSk"
+
+
 class MainRouteTests(unittest.TestCase):
     """Verify entry routes stay stable for the live prototype."""
 
@@ -28,13 +31,21 @@ class MainRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 307)
         self.assertEqual(response.headers["location"], "/app/")
 
-    def test_demo_redirect_defaults_to_app(self) -> None:
-        """The stable demo URL should exist even before the final hosted video is attached."""
+    def test_demo_redirect_defaults_to_uploaded_video(self) -> None:
+        """The stable demo URL should point at the uploaded walkthrough by default."""
 
         response = self._get_route("/demo").endpoint()
 
         self.assertEqual(response.status_code, 307)
-        self.assertEqual(response.headers["location"], "/app/")
+        self.assertEqual(response.headers["location"], DEMO_URL)
+
+    def test_demo_redirect_ignores_legacy_app_env_override(self) -> None:
+        """A stale server env pointing to /app/ should still resolve to the uploaded video."""
+
+        with patch.dict("os.environ", {"SWASTHYA_DEMO_URL": "https://swasthyasignals.aidhunik.com/app/"}, clear=False):
+            from app.config import AppConfig
+
+            self.assertEqual(AppConfig().demo_url, DEMO_URL)
 
     def test_analyze_project_uses_stale_snapshot_while_refreshing_in_background(self) -> None:
         """Stale caches should still serve immediately instead of blocking the request path."""

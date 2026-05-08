@@ -6,6 +6,23 @@ from dataclasses import dataclass
 from os import getenv
 
 
+UPLOADED_DEMO_URL = "https://youtu.be/jnGYBJNrnSk"
+LEGACY_DEMO_URLS = {
+    "/app/",
+    "https://swasthyasignals.aidhunik.com/app/",
+    "https://swasthyasignals.lehana.in/app/",
+}
+
+
+def _resolve_demo_url() -> str:
+    """Prefer the uploaded walkthrough when the environment still carries the old app redirect."""
+
+    configured = getenv("SWASTHYA_DEMO_URL", "").strip()
+    if not configured or configured in LEGACY_DEMO_URLS:
+        return UPLOADED_DEMO_URL
+    return configured
+
+
 @dataclass(frozen=True)
 class AppConfig:
     """Runtime settings for the ingestion prototype."""
@@ -20,7 +37,7 @@ class AppConfig:
         ),
     )
     server_host: str = getenv("SERVER_HOST", "local-swasthya-signals")
-    demo_url: str = getenv("SWASTHYA_DEMO_URL", "/app/")
+    demo_url: str = _resolve_demo_url()
     version: str = "0.3.0"
     reddit_subreddits: tuple[str, ...] = (
         "diabetes",
