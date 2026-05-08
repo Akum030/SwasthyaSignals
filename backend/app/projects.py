@@ -11,6 +11,8 @@ from app.pipeline import build_signals, enrich_item, summarize_topics
 from app.sources.base import SourceError
 from app.sources.google_news import GoogleNewsSource
 from app.sources.reddit import RedditSource
+from app.sources.telegram import TelegramSource
+from app.sources.youtube import YouTubeSource
 
 
 OFFICIAL_CONTEXT_KEYWORDS = (
@@ -86,6 +88,8 @@ FOCUS_QUERY_STOPWORDS = {
     "with",
     "world",
 }
+
+MAX_PROJECT_ITEMS = 60
 
 
 DEFAULT_PROJECTS: list[dict[str, object]] = [
@@ -289,7 +293,7 @@ def build_project_view(
             _dict_to_content_item(item) for item in filtered_items
         ]),
         "signals": [signal.to_dict() for signal in signals],
-        "items": filtered_items[:40],
+        "items": filtered_items[:MAX_PROJECT_ITEMS],
     }
 
 
@@ -317,14 +321,16 @@ def _collect_project_focus_items(
 
     items: list[dict[str, object]] = []
     source_specs = [
-        ("reddit", RedditSource()),
-        ("google_news", GoogleNewsSource()),
+        ("reddit", lambda: RedditSource().fetch(focused_config)),
+        ("google_news", lambda: GoogleNewsSource().fetch(focused_config)),
+        ("youtube", lambda: YouTubeSource().search_queries(tuple(queries), focused_config)),
+        ("telegram", lambda: TelegramSource().fetch(focused_config)),
     ]
-    for source_name, source in source_specs:
+    for source_name, fetch_items in source_specs:
         if allowed_sources and source_name not in allowed_sources:
             continue
         try:
-            fetched_items = source.fetch(focused_config)
+            fetched_items = fetch_items()
         except SourceError:
             continue
         items.extend(enrich_item(item).to_dict() for item in fetched_items)

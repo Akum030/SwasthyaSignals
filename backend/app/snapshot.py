@@ -15,6 +15,9 @@ from app.sources.telegram import TelegramSource
 from app.sources.youtube import YouTubeSource
 
 
+MAX_SNAPSHOT_ITEMS = 80
+
+
 def collect_snapshot(config: AppConfig | None = None) -> dict[str, object]:
     """Collect a real-time snapshot across live public sources."""
 
@@ -75,5 +78,5 @@ def collect_snapshot(config: AppConfig | None = None) -> dict[str, object]:
         "source_status": [status.to_dict() for status in statuses],
         "topics": summarize_topics(relevant_items),
         "signals": [signal.to_dict() for signal in signals],
-        "items": [item.to_dict() for item in relevant_items[:30]],
+        "items": [item.to_dict() for item in relevant_items[:MAX_SNAPSHOT_ITEMS]],
     }

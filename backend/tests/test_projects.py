@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
-from app.projects import DEFAULT_PROJECTS, _build_focus_queries, _expand_project_keywords, build_project_view
+from app.models import ContentItem
+from app.projects import (
+    DEFAULT_PROJECTS,
+    _build_focus_queries,
+    _collect_project_focus_items,
+    _expand_project_keywords,
+    build_project_view,
+)
 
 
 class ProjectViewTests(unittest.TestCase):
@@ -52,6 +60,50 @@ class ProjectViewTests(unittest.TestCase):
         self.assertIn("india chest pain", queries)
         self.assertIn("india chest tightness", queries)
         self.assertIn("india angina", queries)
+
+    @patch("app.projects.YouTubeSource.search_queries")
+    @patch("app.projects.TelegramSource.fetch")
+    def test_collect_project_focus_items_refreshes_youtube_and_telegram(
+        self,
+        telegram_fetch,
+        youtube_search,
+    ) -> None:
+        """Focused project refreshes should include fresh YouTube and Telegram evidence."""
+
+        youtube_search.return_value = [
+            ContentItem(
+                source="youtube",
+                source_label="YouTube Search: metformin palpitations · WHO",
+                title="Metformin side effects explained",
+                body="Doctors explain palpitations, nausea, and diabetes medicine safety.",
+                url="https://www.youtube.com/watch?v=abc123",
+                published_at="2026-05-08T00:00:00+00:00",
+            )
+        ]
+        telegram_fetch.return_value = [
+            ContentItem(
+                source="telegram",
+                source_label="Telegram: MyGov India",
+                title="Metformin safety advisory",
+                body="Public health teams flag diabetes medicine complaints and follow-up advice.",
+                url="https://t.me/mygovindia/77",
+                published_at="2026-05-08T00:00:00+00:00",
+            )
+        ]
+
+        project = {
+            "name": "Metformin palpitations watch",
+            "description": "Focus on direct cardiometabolic side-effect chatter.",
+            "keywords": ["metformin", "palpitations"],
+            "sources": ["youtube", "telegram"],
+            "latency_profile": "Realtime",
+        }
+
+        items = _collect_project_focus_items(project, {"youtube", "telegram"})
+
+        self.assertEqual({item["source"] for item in items}, {"youtube", "telegram"})
+        youtube_search.assert_called_once()
+        telegram_fetch.assert_called_once()
 
     def test_expand_project_keywords_adds_brand_aliases(self) -> None:
         """Canonical terms should expand to the same family as common brand-name aliases."""

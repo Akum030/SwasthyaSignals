@@ -72,6 +72,29 @@ class TextCollector(HTMLParser):
         return normalize_whitespace(" ".join(self._parts))
 
 
+class MetaContentCollector(HTMLParser):
+    """Collect HTML meta tag content keyed by name or property."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.meta: dict[str, str] = {}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        """Capture meta content attributes."""
+
+        if tag != "meta":
+            return
+        attributes = dict(attrs)
+        key = normalize_whitespace(
+            attributes.get("property")
+            or attributes.get("name")
+            or ""
+        ).lower()
+        content = normalize_whitespace(attributes.get("content") or "")
+        if key and content and key not in self.meta:
+            self.meta[key] = content
+
+
 def normalize_whitespace(value: str) -> str:
     """Collapse repeated whitespace and HTML entities."""
 
@@ -92,6 +115,18 @@ def strip_tags(value: str) -> str:
     parser = TextCollector()
     parser.feed(value)
     return parser.text()
+
+
+def extract_meta_content(html: str, *keys: str) -> str:
+    """Return the first matching meta content value from an HTML document."""
+
+    parser = MetaContentCollector()
+    parser.feed(html)
+    for key in keys:
+        value = parser.meta.get(key.lower())
+        if value:
+            return value
+    return ""
 
 
 def resolve_url(base_url: str, href: str) -> str:
